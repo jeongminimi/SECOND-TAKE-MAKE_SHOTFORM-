@@ -1,0 +1,148 @@
+'use strict';
+const path = require('node:path');
+let express;
+try { express = require('express'); } catch { express = require('./mini-express'); }
+
+const { loadConfig, fromStoredPath } = require('../config');
+const { openDb, json } = require('../db');
+const { runDay } = require('../pipeline');
+const { loadCandidate, loadCandidates, loadClipAssets } = require('../selection/candidates');
+const { selectionPlan } = require('../selection/selectDaily');
+const { todayIn, fmtTimestamp } = require('../util/time');
+const { SEED } = require('../cli');
+const { analyzeAssets, approveSuggestion, rejectSuggestion, suggestionsForCandidate } = require('../analysis/structure');
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function createApp(cfg, db) {
+  const app = express();
+  app.use(express.json());
+  let queue = Promise.resolve();
+  const serial = (fn) => (queue = queue.then(fn, fn));
+
+  const reelFor = (selectionId) => db.prepare('SELECT * FROM reels WHERE selection_id = ?').get(selectionId);
+  const jobsFor = (reelId) => db.prepare('SELECT * FROM publish_jobs WHERE reel_id = ? ORDER BY id').all(reelId)
+    .map((j) => ({ ...j, plan: json.parse(j.plan_json) }));
+  const mediaUrl = (p) => {
+    if (!p) return null;
+    const rel = path.relative(cfg.resolved.output, fromStoredPath(cfg, p));
+    return rel.startsWith('..') || path.isAbsolute(rel) ? null : '/output/' + rel.split(path.sep).map(encodeURIComponent).join('/');
+  };
+
+  app.get('/api/overview', (req, res) => {
+    const selections = db.prepare(`
+      SELECT ds.id, ds.operating_date, ds.status, ds.score, ds.revision, ds.skip_reason, pc.candidate_key, pc.performer_en, r.title_en,
+             r.output_format, r.render_status, r.poster_path, pj.status AS job_status
+        FROM daily_selections ds
+        LEFT JOIN performance_candidates pc ON pc.id = ds.candidate_id
+        LEFT JOIN reels r ON r.selection_id = ds.id
+        LEFT JOIN publish_jobs pj ON pj.reel_id = r.id AND pj.mode = 'dry_run'
+       ORDER BY ds.operating_date DESC`).all().map((s) => ({ ...s, poster_url: mediaUrl(s.poster_path) }));
+    let scenarioDates = {};
+    try { scenarioDates = require(SEED)._meta.scenarioDates; } catch { /* optional */ }
+    res.json({ account: cfg.account, timezone: cfg.timezone, publishLocalTime: cfg.publish.localTime, ruleVersion: cfg.selection.ruleVersion,
+      weights: cfg.selection.weights, today: todayIn(cfg.timezone), scenarioDates, selections, expressFallback: Boolean(express.isFallback) });
+  });
+
+  app.get('/api/day/:date', (req, res) => {
+    const sel = db.prepare('SELECT * FROM daily_selections WHERE operating_date = ?').get(req.params.date);
+    if (!sel) return res.status(404).json({ error: `No run for ${req.params.date} yet` });
+    const out = { selection: { ...sel, evaluation_snapshot: undefined, score_breakdown: json.parse(sel.score_breakdown) },
+      snapshot: json.parse(sel.evaluation_snapshot, []), plan: selectionPlan(sel) };
+    if (sel.candidate_id) {
+      const c = loadCandidate(db, sel.candidate_id);
+      out.candidate = c;
+      const reel = reelFor(sel.id);
+      if (reel) {
+        out.reel = { ...reel, video_url: mediaUrl(reel.output_path), poster_url: mediaUrl(reel.poster_path) };
+        out.jobs = jobsFor(reel.id);
+        out.clip = reel.clip_asset_id ? loadClipAssets(db, c.id).find((a) => a.id === reel.clip_asset_id) : null;
+      }
+      out.suggestions = suggestionsForCandidate(db, c.id);
+    }
+    res.json(out);
+  });
+
+  app.get('/api/candidates', (req, res) => {
+    res.json(loadCandidates(db).map((c) => ({ ...c, clip_assets: loadClipAssets(db, c.id) })));
+  });
+
+  app.post('/api/run', async (req, res) => {
+    const date = req.body?.date || todayIn(cfg.timezone);
+    try {
+      const r = await serial(() => runDay(db, cfg, date, { reselect: Boolean(req.body?.reselect) }));
+      res.json({ ok: true, date, selectionReused: r.selectionReused, reelCreated: r.reelCreated, rendered: r.rendered, status: r.selection.status });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/analyze', async (req, res) => {
+    try { res.json({ ok: true, results: await serial(() => analyzeAssets(db, cfg, { assetKey: req.body?.assetKey ?? null })) }); }
+    catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  // Approve → clip range changes → every affected date is re-run so the reel is re-rendered on the same row.
+  app.post('/api/suggestions/:id/approve', async (req, res) => {
+    try {
+      const r = await serial(async () => {
+        const a = approveSuggestion(db, cfg, Number(req.params.id));
+        const dates = a.reelsToRerender.length
+          ? db.prepare(`SELECT ds.operating_date d FROM reels r JOIN daily_selections ds ON ds.id = r.selection_id WHERE r.id IN (${a.reelsToRerender.map(() => '?').join(',')})`).all(...a.reelsToRerender).map((x) => x.d)
+          : [];
+        for (const d of dates) await runDay(db, cfg, d);
+        return { ...a, rerunDates: dates };
+      });
+      res.json({ ok: true, ...r });
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  app.post('/api/suggestions/:id/reject', (req, res) => {
+    try { rejectSuggestion(db, Number(req.params.id)); res.json({ ok: true }); } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  // Local "original guide" list: post title → official original (with verified timestamp only).
+  app.get('/guide', (req, res) => {
+    const rows = db.prepare(`SELECT r.id, r.title_en, r.official_link, r.output_format, ds.operating_date FROM reels r
+                               JOIN daily_selections ds ON ds.id = r.selection_id ORDER BY ds.operating_date DESC`).all();
+    res.send(guideShell('Official originals', `<h1>Watch the official originals</h1><p class="muted">Every reel links to the full official video.</p><ul class="list">${
+      rows.map((r) => `<li><a href="/guide/${r.id}"><span class="d">${esc(r.operating_date)}</span>${esc(r.title_en)}</a></li>`).join('')}</ul>`));
+  });
+
+  app.get('/guide/:id', (req, res) => {
+    const r = db.prepare('SELECT r.*, ds.candidate_id, ds.operating_date FROM reels r JOIN daily_selections ds ON ds.id = r.selection_id WHERE r.id = ?').get(Number(req.params.id));
+    if (!r) return res.status(404).send(guideShell('Not found', '<h1>Not found</h1>'));
+    const c = loadCandidate(db, r.candidate_id);
+    const ts = c.segment_start_sec != null && c.segment_evidence ? fmtTimestamp(c.segment_start_sec) : null;
+    res.send(guideShell(r.title_en, `
+      <p class="eyebrow">${esc(cfg.account.displayName)} · ${esc(r.operating_date)}</p>
+      <h1>${esc(r.title_en)}</h1>
+      <p class="big">${esc(c.performer_en)} – ${esc(c.title_en)}</p>
+      ${c.performer_ko || c.title_ko ? `<p class="muted">${esc(c.performer_ko ?? '')} – ${esc(c.title_ko ?? '')}</p>` : ''}
+      <p>${esc(c.program_name ?? '')} · Official source: ${esc(c.channel_name)}</p>
+      <a class="btn" href="${esc(r.official_link)}" target="_blank" rel="noopener noreferrer">▶ Watch the full official video${ts ? ` from ${ts}` : ''}</a>
+      ${ts ? `<p class="muted small">Timestamp from: ${esc(c.segment_evidence)}</p>` : '<p class="muted small">No verified timestamp — link opens the full video.</p>'}
+      <p class="muted small">${r.output_format === 'licensed_clip' ? 'The reel uses a clip under permission.' : 'The reel is an original graphic; it contains no performance footage or audio.'}</p>
+      <p><a href="/guide">← All originals</a></p>`));
+  });
+
+  app.use('/output', express.static(cfg.resolved.output));
+  app.use('/', express.static(path.join(__dirname, 'public')));
+  return app;
+}
+
+function guideShell(title, body) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(title)}</title><link rel="stylesheet" href="/guide.css"></head><body><main class="guide">${body}</main></body></html>`;
+}
+
+if (require.main === module) {
+  const cfg = loadConfig();
+  const db = openDb(cfg.resolved.db);
+  const port = Number(process.env.PORT || 3000);
+  createApp(cfg, db).listen(port, () => {
+    console.log(`SECOND TAKE studio → http://localhost:${port}  (${express.isFallback ? 'built-in fallback server: run `npm install` for Express' : 'Express'})`);
+  });
+}
+
+module.exports = { createApp };

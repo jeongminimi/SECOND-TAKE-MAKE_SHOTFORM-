@@ -1,0 +1,30 @@
+{
+  "id": "graphic-sequence",
+  "format": "original_graphic",
+  "name": "Three-beat sequence",
+  "description": "Hook → why → where to watch. The screen changes every ~2.7s so a silent graphic does not sit still.",
+  "progressBar": true,
+  "elements": [
+    { "type": "text", "bind": "brand", "size": 34, "color": "accent", "y": 120 },
+    { "type": "text", "value": "LIVE VERSIONS & COVERS", "size": 24, "color": "#8A8A96", "x": "right", "y": 128 },
+    { "type": "box", "y": 186, "w": 900, "h": 3, "color": "accent" },
+
+    { "type": "pill", "bind": "tag", "size": 44, "y": 640, "show": [0, 2.8] },
+    { "type": "text", "bind": "headline", "size": 100, "wrap": 17, "gap": 60, "show": [0, 2.8] },
+
+    { "type": "text", "bind": "performerLine", "size": 56, "wrap": 28, "y": 560, "show": [2.8, 5.5] },
+    { "type": "text", "bind": "koLine", "size": 44, "color": "#9A9AA6", "gap": 14, "show": [2.8, 5.5] },
+    { "type": "text", "bind": "originalLine", "size": 36, "color": "#9A9AA6", "gap": 14, "show": [2.8, 5.5] },
+    { "type": "label", "value": "WHY THIS VERSION", "size": 32, "gap": 90, "show": [2.8, 5.5] },
+    { "type": "text", "bind": "why", "size": 64, "wrap": 24, "gap": 30, "show": [2.8, 5.5] },
+
+    { "type": "label", "value": "WHERE TO WATCH", "size": 32, "y": 620, "show": [5.5, 8] },
+    { "type": "list", "bind": "cues", "size": 46, "wrap": 22, "gap": 40, "show": [5.5, 8] },
+    { "type": "text", "bind": "timestamp", "prefix": "▶ ", "size": 46, "color": "accent", "gap": 30, "show": [5.5, 8] },
+    { "type": "text", "bind": "cta", "size": 50, "wrap": 26, "gap": 70, "show": [5.5, 8] },
+    { "type": "text", "bind": "sourceLine", "size": 34, "wrap": 40, "color": "#9A9AA6", "gap": 30, "show": [5.5, 8] },
+
+    { "type": "text", "bind": "footer", "size": 30, "color": "#8A8A96", "y": 1740 },
+    { "type": "text", "value": "Original graphic · no performance footage or audio", "size": 24, "color": "#5E5E6A", "y": 1790 }
+  ]
+}

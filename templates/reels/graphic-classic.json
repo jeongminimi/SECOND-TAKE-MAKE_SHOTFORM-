@@ -1,0 +1,22 @@
+{
+  "id": "graphic-classic",
+  "format": "original_graphic",
+  "name": "Classic card",
+  "description": "Everything on one card; elements fade in once. Calm, readable.",
+  "progressBar": true,
+  "elements": [
+    { "type": "text", "bind": "brand", "size": 34, "color": "accent", "y": 120 },
+    { "type": "text", "value": "LIVE VERSIONS & COVERS", "size": 24, "color": "#8A8A96", "x": "right", "y": 128 },
+    { "type": "box", "y": 186, "w": 900, "h": 3, "color": "accent" },
+    { "type": "pill", "bind": "tag", "size": 40, "y": 430 },
+    { "type": "text", "bind": "headline", "size": 90, "wrap": 19, "y": 560, "fadeIn": 0.2 },
+    { "type": "text", "bind": "performerLine", "size": 46, "color": "#E6E6EC", "gap": 36, "fadeIn": 0.6 },
+    { "type": "text", "bind": "koLine", "size": 40, "color": "#9A9AA6", "gap": 12, "fadeIn": 0.6 },
+    { "type": "text", "bind": "originalLine", "size": 34, "color": "#9A9AA6", "gap": 12, "fadeIn": 0.6 },
+    { "type": "label", "value": "WHY THIS VERSION", "size": 30, "gap": 70, "minY": 1240, "fadeIn": 1.2 },
+    { "type": "text", "bind": "why", "size": 50, "wrap": 30, "gap": 26, "fadeIn": 1.4 },
+    { "type": "text", "bind": "timestamp", "prefix": "▶ ", "size": 34, "color": "accent", "gap": 30, "fadeIn": 2.0 },
+    { "type": "text", "bind": "footer", "size": 30, "color": "#8A8A96", "y": 1740 },
+    { "type": "text", "value": "Original graphic · no performance footage or audio", "size": 24, "color": "#5E5E6A", "y": 1790 }
+  ]
+}

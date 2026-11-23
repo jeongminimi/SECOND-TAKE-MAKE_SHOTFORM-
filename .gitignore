@@ -1,0 +1,20 @@
+node_modules/
+# runtime data
+storage/
+output/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+# secrets — upload keys, tokens, permission evidence originals
+.env
+.env.*
+!.env.example
+config/local.json
+evidence/
+*.pem
+*.key
+logs/
+*.log
+.DS_Store
+Thumbs.db

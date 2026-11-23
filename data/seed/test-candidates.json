@@ -1,0 +1,630 @@
+{
+  "_meta": {
+    "isTestData": true,
+    "note": "Fictional artists, channels and URLs (example.com) for local verification only. No real official video is referenced, downloaded or re-uploaded. All clip files are self-generated test media; all permissions are virtual test permissions (is_test_permission=1) and are refused by the live publishing path.",
+    "scenarioDates": {
+      "2026-09-26": "skip — only an unverified candidate exists (no official English title)",
+      "2026-11-15": "original_graphic — every clip fails a rights check (expired / KR-only / segment mismatch / missing music right)",
+      "2026-11-16": "original_graphic — recent-diversity penalty rotates away from the previous day's performer",
+      "2026-11-23": "licensed_clip — a test sample with complete (virtual) rights"
+    }
+  },
+  "channels": [
+    {
+      "key": "CH_SESSIONS",
+      "platform": "youtube",
+      "external_id": "TEST-UC-seoul-live-sessions",
+      "name": "Seoul Live Sessions (TEST)",
+      "is_active": 1,
+      "is_test": 1
+    },
+    {
+      "key": "CH_HANEUL",
+      "platform": "youtube",
+      "external_id": "TEST-UC-haneul-official",
+      "name": "Haneul Official (TEST)",
+      "is_active": 1,
+      "is_test": 1
+    },
+    {
+      "key": "CH_LUMINA",
+      "platform": "youtube",
+      "external_id": "TEST-UC-lumina-official",
+      "name": "LUMINA Official (TEST)",
+      "is_active": 1,
+      "is_test": 1
+    }
+  ],
+  "tracks": [
+    {
+      "key": "TR_STARLIGHT",
+      "original_artist_en": "LUMINA",
+      "original_artist_ko": "루미나",
+      "title_en": "Starlight Avenue",
+      "title_ko": "별빛 거리",
+      "name_evidence": "TEST: official English/Korean title as listed on LUMINA Official (TEST) channel"
+    },
+    {
+      "key": "TR_BLUEHOUR",
+      "original_artist_en": "ORBIT",
+      "original_artist_ko": "오르빗",
+      "title_en": "Blue Hour",
+      "title_ko": "블루 아워",
+      "name_evidence": "TEST: official title in Seoul Live Sessions (TEST) video title"
+    },
+    {
+      "key": "TR_RAINFALL",
+      "original_artist_en": "SORA",
+      "original_artist_ko": "소라",
+      "title_en": "Rainfall",
+      "title_ko": "소나기",
+      "name_evidence": "TEST: official chapter list"
+    },
+    {
+      "key": "TR_PAPERMOON",
+      "original_artist_en": "Haneul",
+      "original_artist_ko": "하늘",
+      "title_en": "Paper Moon",
+      "title_ko": "종이 달",
+      "name_evidence": "TEST: official chapter list"
+    },
+    {
+      "key": "TR_3AM",
+      "original_artist_en": "Haneul",
+      "original_artist_ko": "하늘",
+      "title_en": null,
+      "title_ko": "새벽 세시",
+      "name_evidence": null
+    }
+  ],
+  "videos": [
+    {
+      "key": "V_LUMINA_BAND",
+      "channel": "CH_SESSIONS",
+      "platform": "youtube",
+      "platform_video_id": "TEST-SLS-0001",
+      "official_url": "https://example.com/test-official/watch?v=TEST-SLS-0001",
+      "title": "[Seoul Live Sessions] LUMINA - Starlight Avenue (Live Band Ver.)",
+      "description": "LUMINA performs Starlight Avenue rearranged for a five-piece live band.\n00:00 Intro talk\n02:14 Starlight Avenue (Live Band Ver.)\n04:22 Outro",
+      "published_at": "2026-11-20T09:00:00Z"
+    },
+    {
+      "key": "V_HANEUL_COVER",
+      "channel": "CH_HANEUL",
+      "platform": "youtube",
+      "platform_video_id": "TEST-HAN-0001",
+      "official_url": "https://example.com/test-official/watch?v=TEST-HAN-0001",
+      "title": "Haneul - Starlight Avenue (Acoustic Cover) | Original by LUMINA",
+      "description": "Haneul covers LUMINA's Starlight Avenue with acoustic guitar and voice only.",
+      "published_at": "2026-11-10T10:00:00Z"
+    },
+    {
+      "key": "V_ORBIT_ACOUSTIC",
+      "channel": "CH_SESSIONS",
+      "platform": "youtube",
+      "platform_video_id": "TEST-SLS-0002",
+      "official_url": "https://example.com/test-official/watch?v=TEST-SLS-0002",
+      "title": "[Seoul Live Sessions] ORBIT - Blue Hour (Acoustic Ver.)",
+      "description": "ORBIT strips Blue Hour down to piano and strings.",
+      "published_at": "2026-11-08T09:00:00Z"
+    },
+    {
+      "key": "V_SORA_MEDLEY",
+      "channel": "CH_SESSIONS",
+      "platform": "youtube",
+      "platform_video_id": "TEST-SLS-0003",
+      "official_url": "https://example.com/test-official/watch?v=TEST-SLS-0003",
+      "title": "[Seoul Live Sessions] SORA - Band Live: Rainfall + Paper Moon (Cover)",
+      "description": "SORA with full band.\n00:30 Rainfall (Band Ver.)\n03:40 Paper Moon (Haneul cover, Band Ver.)\n06:55 End",
+      "published_at": "2026-11-01T09:00:00Z"
+    },
+    {
+      "key": "V_LUMINA_STAGE",
+      "channel": "CH_LUMINA",
+      "platform": "youtube",
+      "platform_video_id": "TEST-LUM-0001",
+      "official_url": "https://example.com/test-official/watch?v=TEST-LUM-0001",
+      "title": "LUMINA - Starlight Avenue | Official Live Stage",
+      "description": "Official live stage video.",
+      "published_at": "2026-09-28T11:00:00Z"
+    },
+    {
+      "key": "V_HANEUL_3AM",
+      "channel": "CH_HANEUL",
+      "platform": "youtube",
+      "platform_video_id": "TEST-HAN-0002",
+      "official_url": "https://example.com/test-official/watch?v=TEST-HAN-0002",
+      "title": "하늘 - 새벽 세시 (Live Clip)",
+      "description": "라이브 클립",
+      "published_at": "2026-09-20T11:00:00Z"
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_key": "P001-lumina-starlight-band",
+      "video": "V_LUMINA_BAND",
+      "track": "TR_STARLIGHT",
+      "performer_en": "LUMINA",
+      "performer_ko": "루미나",
+      "program_name": "Seoul Live Sessions",
+      "performance_type": "live",
+      "arrangement_tags": [
+        "band"
+      ],
+      "version_evidence": "Official title: \"(Live Band Ver.)\"; description: \"rearranged for a five-piece live band\"",
+      "segment_start_sec": 134,
+      "segment_end_sec": 262,
+      "segment_evidence": "Official chapter \"02:14 Starlight Avenue (Live Band Ver.)\" – next chapter 04:22",
+      "why_watch_en": "The synth-pop original, rebuilt for a five-piece live band.",
+      "why_watch_evidence": "Official description: \"rearranged for a five-piece live band\"; original is a studio synth-pop track (TEST track notes)",
+      "judgement_notes": "TEST: names, version and segment taken from the official video title, description and chapters.",
+      "watch_cues": [
+        {
+          "at_sec": 140,
+          "text_en": "The full band drops in",
+          "evidence": "TEST: official description chapter note \"02:20 band in\""
+        },
+        {
+          "at_sec": 149,
+          "text_en": "Guitar takes the hook",
+          "evidence": "TEST: official description chapter note \"02:29 guitar hook\""
+        },
+        {
+          "at_sec": 158,
+          "text_en": "Last chorus with the whole band",
+          "evidence": "TEST: official description chapter note \"02:38 last chorus\""
+        }
+      ]
+    },
+    {
+      "candidate_key": "P002-haneul-starlight-acoustic-cover",
+      "video": "V_HANEUL_COVER",
+      "track": "TR_STARLIGHT",
+      "performer_en": "Haneul",
+      "performer_ko": "하늘",
+      "program_name": "Haneul Official",
+      "performance_type": "cover",
+      "arrangement_tags": [
+        "acoustic"
+      ],
+      "version_evidence": "Official title: \"(Acoustic Cover) | Original by LUMINA\"; description: \"acoustic guitar and voice only\"",
+      "segment_start_sec": null,
+      "segment_end_sec": null,
+      "segment_evidence": null,
+      "why_watch_en": "Just one guitar and one voice.",
+      "why_watch_evidence": "Official description: \"with acoustic guitar and voice only\"",
+      "judgement_notes": "TEST: same track as P001 but a different performer and version — stored as a separate candidate.",
+      "watch_cues": []
+    },
+    {
+      "candidate_key": "P003-orbit-bluehour-acoustic",
+      "video": "V_ORBIT_ACOUSTIC",
+      "track": "TR_BLUEHOUR",
+      "performer_en": "ORBIT",
+      "performer_ko": "오르빗",
+      "program_name": "Seoul Live Sessions",
+      "performance_type": "live",
+      "arrangement_tags": [
+        "acoustic",
+        "piano"
+      ],
+      "version_evidence": "Official title: \"(Acoustic Ver.)\"; description: \"down to piano and strings\"",
+      "segment_start_sec": null,
+      "segment_end_sec": null,
+      "segment_evidence": null,
+      "why_watch_en": "Stripped down to piano and strings.",
+      "why_watch_evidence": "Official description: \"strips Blue Hour down to piano and strings\"",
+      "judgement_notes": "TEST",
+      "watch_cues": [
+        {
+          "at_sec": 95,
+          "text_en": "Strings enter under the second verse",
+          "evidence": "TEST: official description \"1:35 strings\""
+        }
+      ]
+    },
+    {
+      "candidate_key": "P004-sora-rainfall-band",
+      "video": "V_SORA_MEDLEY",
+      "track": "TR_RAINFALL",
+      "performer_en": "SORA",
+      "performer_ko": "소라",
+      "program_name": "Seoul Live Sessions",
+      "performance_type": "live",
+      "arrangement_tags": [
+        "band"
+      ],
+      "version_evidence": "Official chapter: \"Rainfall (Band Ver.)\"",
+      "segment_start_sec": 30,
+      "segment_end_sec": 220,
+      "segment_evidence": "Official chapters 00:30 – 03:40",
+      "why_watch_en": null,
+      "why_watch_evidence": null,
+      "judgement_notes": "TEST: one official video contains two songs (see P005)."
+    },
+    {
+      "candidate_key": "P005-sora-papermoon-band-cover",
+      "video": "V_SORA_MEDLEY",
+      "track": "TR_PAPERMOON",
+      "performer_en": "SORA",
+      "performer_ko": "소라",
+      "program_name": "Seoul Live Sessions",
+      "performance_type": "cover",
+      "arrangement_tags": [
+        "band"
+      ],
+      "version_evidence": "Official chapter: \"Paper Moon (Haneul cover, Band Ver.)\"",
+      "segment_start_sec": 220,
+      "segment_end_sec": 415,
+      "segment_evidence": "Official chapters 03:40 – 06:55",
+      "why_watch_en": null,
+      "why_watch_evidence": null,
+      "judgement_notes": "TEST"
+    },
+    {
+      "candidate_key": "P006-haneul-3am-unverified",
+      "video": "V_HANEUL_3AM",
+      "track": "TR_3AM",
+      "performer_en": "Haneul",
+      "performer_ko": "하늘",
+      "program_name": "Haneul Official",
+      "performance_type": "live",
+      "arrangement_tags": [],
+      "version_evidence": null,
+      "segment_start_sec": null,
+      "segment_end_sec": null,
+      "segment_evidence": null,
+      "why_watch_en": null,
+      "why_watch_evidence": null,
+      "judgement_notes": "TEST: no official English title exists — must be excluded, never auto-romanized."
+    },
+    {
+      "candidate_key": "P007-lumina-starlight-stage",
+      "video": "V_LUMINA_STAGE",
+      "track": "TR_STARLIGHT",
+      "performer_en": "LUMINA",
+      "performer_ko": "루미나",
+      "program_name": "LUMINA Official Live Stage",
+      "performance_type": "live",
+      "arrangement_tags": [],
+      "version_evidence": "Official title: \"Official Live Stage\"",
+      "segment_start_sec": null,
+      "segment_end_sec": null,
+      "segment_evidence": null,
+      "why_watch_en": null,
+      "why_watch_evidence": null,
+      "occasion_note": null,
+      "occasion_date": null,
+      "occasion_evidence": null,
+      "judgement_notes": "TEST: plain live — no arrangement difference, so no version-difference points."
+    }
+  ],
+  "clip_assets": [
+    {
+      "asset_key": "A001-lumina-band-sample",
+      "candidate": "P001-lumina-starlight-band",
+      "file_ref": "storage/test-assets/sample_live_clip.mp4",
+      "source_start_sec": 134,
+      "source_end_sec": 156,
+      "file_offset_sec": 4,
+      "is_test_asset": 1,
+      "notes": "Self-generated test video standing in for a licensed clip. Rights complete (virtual).",
+      "permissions": [
+        {
+          "rights_category": "footage",
+          "rights_holder": "Seoul Live Sessions (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "WORLDWIDE"
+          ],
+          "valid_from": "2026-11-01T00:00:00Z",
+          "valid_until": "2027-10-31T23:59:59Z",
+          "permitted_start_sec": 120,
+          "permitted_end_sec": 300,
+          "evidence_ref": "evidence://TEST-A001-footage",
+          "is_test_permission": 1
+        },
+        {
+          "rights_category": "music",
+          "rights_holder": "LUMINA Publishing (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "WORLDWIDE"
+          ],
+          "valid_from": "2026-11-01T00:00:00Z",
+          "valid_until": "2027-10-31T23:59:59Z",
+          "permitted_start_sec": 120,
+          "permitted_end_sec": 300,
+          "evidence_ref": "evidence://TEST-A001-music",
+          "is_test_permission": 1
+        },
+        {
+          "rights_category": "performance",
+          "rights_holder": "LUMINA (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "WORLDWIDE"
+          ],
+          "valid_from": "2026-11-01T00:00:00Z",
+          "valid_until": "2027-10-31T23:59:59Z",
+          "permitted_start_sec": 120,
+          "permitted_end_sec": 300,
+          "evidence_ref": "evidence://TEST-A001-performance",
+          "is_test_permission": 1
+        }
+      ]
+    },
+    {
+      "asset_key": "A002-haneul-cover-expired",
+      "candidate": "P002-haneul-starlight-acoustic-cover",
+      "file_ref": "storage/test-assets/sample_live_clip.mp4",
+      "source_start_sec": 40,
+      "source_end_sec": 60,
+      "file_offset_sec": 10,
+      "is_test_asset": 1,
+      "notes": "Rights expired before the scheduled publish time.",
+      "permissions": [
+        {
+          "rights_category": "footage",
+          "rights_holder": "Haneul Official (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "WORLDWIDE"
+          ],
+          "valid_from": "2026-10-01T00:00:00Z",
+          "valid_until": "2026-11-12T23:59:59Z",
+          "permitted_start_sec": 0,
+          "permitted_end_sec": 240,
+          "evidence_ref": "evidence://TEST-A002-footage",
+          "is_test_permission": 1
+        },
+        {
+          "rights_category": "music",
+          "rights_holder": "LUMINA Publishing (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "WORLDWIDE"
+          ],
+          "valid_from": "2026-10-01T00:00:00Z",
+          "valid_until": "2026-11-12T23:59:59Z",
+          "permitted_start_sec": 0,
+          "permitted_end_sec": 240,
+          "evidence_ref": "evidence://TEST-A002-music",
+          "is_test_permission": 1
+        },
+        {
+          "rights_category": "performance",
+          "rights_holder": "Haneul (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "WORLDWIDE"
+          ],
+          "valid_from": "2026-10-01T00:00:00Z",
+          "valid_until": "2026-11-12T23:59:59Z",
+          "permitted_start_sec": 0,
+          "permitted_end_sec": 240,
+          "evidence_ref": "evidence://TEST-A002-performance",
+          "is_test_permission": 1
+        }
+      ]
+    },
+    {
+      "asset_key": "A003-orbit-kr-only",
+      "candidate": "P003-orbit-bluehour-acoustic",
+      "file_ref": "storage/test-assets/sample_live_clip.mp4",
+      "source_start_sec": 60,
+      "source_end_sec": 80,
+      "file_offset_sec": 20,
+      "is_test_asset": 1,
+      "notes": "Territory limited to KR — does not cover a worldwide post.",
+      "permissions": [
+        {
+          "rights_category": "footage",
+          "rights_holder": "Seoul Live Sessions (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "KR"
+          ],
+          "valid_from": "2026-10-01T00:00:00Z",
+          "valid_until": "2027-12-31T23:59:59Z",
+          "permitted_start_sec": 0,
+          "permitted_end_sec": 300,
+          "evidence_ref": "evidence://TEST-A003-footage",
+          "is_test_permission": 1
+        },
+        {
+          "rights_category": "music",
+          "rights_holder": "ORBIT Publishing (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "KR"
+          ],
+          "valid_from": "2026-10-01T00:00:00Z",
+          "valid_until": "2027-12-31T23:59:59Z",
+          "permitted_start_sec": 0,
+          "permitted_end_sec": 300,
+          "evidence_ref": "evidence://TEST-A003-music",
+          "is_test_permission": 1
+        },
+        {
+          "rights_category": "performance",
+          "rights_holder": "ORBIT (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "KR"
+          ],
+          "valid_from": "2026-10-01T00:00:00Z",
+          "valid_until": "2027-12-31T23:59:59Z",
+          "permitted_start_sec": 0,
+          "permitted_end_sec": 300,
+          "evidence_ref": "evidence://TEST-A003-performance",
+          "is_test_permission": 1
+        }
+      ]
+    },
+    {
+      "asset_key": "A004-sora-segment-mismatch",
+      "candidate": "P004-sora-rainfall-band",
+      "file_ref": "storage/test-assets/sample_live_clip.mp4",
+      "source_start_sec": 50,
+      "source_end_sec": 80,
+      "file_offset_sec": 0,
+      "is_test_asset": 1,
+      "notes": "Intended 0:50–1:20 but rights only cover 0:30–1:00.",
+      "permissions": [
+        {
+          "rights_category": "footage",
+          "rights_holder": "Seoul Live Sessions (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "WORLDWIDE"
+          ],
+          "valid_from": "2026-10-01T00:00:00Z",
+          "valid_until": "2027-12-31T23:59:59Z",
+          "permitted_start_sec": 30,
+          "permitted_end_sec": 60,
+          "evidence_ref": "evidence://TEST-A004-footage",
+          "is_test_permission": 1
+        },
+        {
+          "rights_category": "music",
+          "rights_holder": "SORA Publishing (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "WORLDWIDE"
+          ],
+          "valid_from": "2026-10-01T00:00:00Z",
+          "valid_until": "2027-12-31T23:59:59Z",
+          "permitted_start_sec": 30,
+          "permitted_end_sec": 60,
+          "evidence_ref": "evidence://TEST-A004-music",
+          "is_test_permission": 1
+        },
+        {
+          "rights_category": "performance",
+          "rights_holder": "SORA (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "WORLDWIDE"
+          ],
+          "valid_from": "2026-10-01T00:00:00Z",
+          "valid_until": "2027-12-31T23:59:59Z",
+          "permitted_start_sec": 30,
+          "permitted_end_sec": 60,
+          "evidence_ref": "evidence://TEST-A004-performance",
+          "is_test_permission": 1
+        }
+      ]
+    },
+    {
+      "asset_key": "A005-sora-cover-missing-music",
+      "candidate": "P005-sora-papermoon-band-cover",
+      "file_ref": "storage/test-assets/sample_live_clip.mp4",
+      "source_start_sec": 230,
+      "source_end_sec": 250,
+      "file_offset_sec": 30,
+      "is_test_asset": 1,
+      "notes": "Music (composition) right for the covered song is missing.",
+      "permissions": [
+        {
+          "rights_category": "footage",
+          "rights_holder": "Seoul Live Sessions (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "WORLDWIDE"
+          ],
+          "valid_from": "2026-10-01T00:00:00Z",
+          "valid_until": "2027-12-31T23:59:59Z",
+          "permitted_start_sec": 220,
+          "permitted_end_sec": 415,
+          "evidence_ref": "evidence://TEST-A005-footage",
+          "is_test_permission": 1
+        },
+        {
+          "rights_category": "performance",
+          "rights_holder": "SORA (TEST)",
+          "status": "granted",
+          "allows_edit": 1,
+          "allows_repost": 1,
+          "platforms": [
+            "instagram"
+          ],
+          "territories": [
+            "WORLDWIDE"
+          ],
+          "valid_from": "2026-10-01T00:00:00Z",
+          "valid_until": "2027-12-31T23:59:59Z",
+          "permitted_start_sec": 220,
+          "permitted_end_sec": 415,
+          "evidence_ref": "evidence://TEST-A005-performance",
+          "is_test_permission": 1
+        }
+      ]
+    }
+  ]
+}

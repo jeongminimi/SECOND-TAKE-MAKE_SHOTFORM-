@@ -1,0 +1,21 @@
+{
+  "id": "clip-standard",
+  "format": "licensed_clip",
+  "name": "Licensed clip, letterboxed",
+  "description": "16:9 clip centred in 9:16 with headline above, context below and evidence-backed cues popping up over the clip.",
+  "video": { "y": 650 },
+  "progressBar": false,
+  "elements": [
+    { "type": "text", "bind": "brand", "size": 34, "color": "accent", "y": 120 },
+    { "type": "text", "value": "LIVE VERSIONS & COVERS", "size": 24, "color": "#8A8A96", "x": "right", "y": 128 },
+    { "type": "box", "y": 186, "w": 900, "h": 3, "color": "accent" },
+    { "type": "pill", "bind": "tag", "size": 40, "y": 230 },
+    { "type": "text", "bind": "headline", "size": 72, "wrap": 24, "y": 360, "fadeIn": 0.2 },
+    { "type": "clipCues", "bind": "clipCues", "size": 38, "y": 1180, "holdSec": 2.8 },
+    { "type": "text", "bind": "performerLine", "size": 44, "color": "#E6E6EC", "y": 1300 },
+    { "type": "text", "bind": "koLine", "size": 38, "color": "#9A9AA6", "gap": 10 },
+    { "type": "text", "bind": "why", "size": 44, "wrap": 32, "gap": 40, "fadeIn": 0.8 },
+    { "type": "text", "bind": "footer", "size": 28, "color": "#8A8A96", "y": 1730 },
+    { "type": "text", "bind": "credit", "size": 22, "color": "#5E5E6A", "y": 1780 }
+  ]
+}

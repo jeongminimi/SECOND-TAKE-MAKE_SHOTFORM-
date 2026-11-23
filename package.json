@@ -1,0 +1,22 @@
+{
+  "name": "kpop-live-versions-reels",
+  "version": "0.2.0",
+  "description": "K-pop Live Versions & Covers \u2014 Instagram Reels curation pipeline (local MVP: candidates \u2192 selection \u2192 rights check \u2192 English copy \u2192 9:16 render \u2192 dry-run publish)",
+  "private": true,
+  "main": "src/web/server.js",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "setup": "node --disable-warning=ExperimentalWarning src/cli.js setup",
+    "run:day": "node --disable-warning=ExperimentalWarning src/cli.js run",
+    "demo": "node --disable-warning=ExperimentalWarning src/cli.js demo",
+    "status": "node --disable-warning=ExperimentalWarning src/cli.js status",
+    "start": "node --disable-warning=ExperimentalWarning src/web/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 --test-force-exit \"test/**/*.test.js\"",
+    "analyze": "node --disable-warning=ExperimentalWarning src/cli.js analyze"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

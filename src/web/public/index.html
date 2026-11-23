@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SECOND TAKE · Reels Studio</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="mark">2T</span>
+      <div>
+        <strong id="brandName">SECOND TAKE</strong>
+        <span class="sub" id="brandConcept">K-pop Live Versions &amp; Covers</span>
+      </div>
+    </div>
+    <form class="run" id="runForm">
+      <label>운영 날짜 <input type="date" id="runDate" required></label>
+      <label class="check"><input type="checkbox" id="reselect"> 재선곡</label>
+      <button type="submit" id="runBtn">파이프라인 실행</button>
+    </form>
+  </header>
+
+  <div class="scenarios" id="scenarios"></div>
+  <div class="notice" id="notice" hidden></div>
+  <div class="server-note" id="serverNote" hidden></div>
+
+  <div class="layout">
+    <aside class="days">
+      <h2>운영 기록</h2>
+      <ol id="dayList"><li class="muted">아직 실행 기록이 없습니다.</li></ol>
+      <a class="guide-link" href="/guide" target="_blank">공식 원본 안내 목록 ↗</a>
+    </aside>
+
+    <main id="detail" class="detail">
+      <section class="empty">
+        <h1>후보에서 발행 예약까지, 한 화면에서</h1>
+        <p>위의 시나리오 날짜를 누르거나 날짜를 골라 <b>파이프라인 실행</b>을 누르세요. 선곡 → 권한 판정 → 영어 문구 → 9:16 영상 → 드라이런 예약이 순서대로 실행됩니다.</p>
+      </section>
+    </main>
+  </div>
+
+  <template id="tplDay">
+    <section class="flow" data-ref="flow"></section>
+    <div class="cols">
+      <div class="col-main">
+        <section class="card" data-ref="selCard"></section>
+        <section class="card">
+          <h3>후보 평가 <span class="muted small" data-ref="ruleVer"></span></h3>
+          <div class="table-wrap"><table class="cands" data-ref="candTable"></table></div>
+        </section>
+        <section class="card" data-ref="rightsCard"></section>
+        <section class="card" data-ref="segCard"></section>
+        <section class="card" data-ref="jobCard"></section>
+      </div>
+      <div class="col-side">
+        <section class="card phone-card" data-ref="previewCard"></section>
+        <section class="card" data-ref="captionCard"></section>
+      </div>
+    </div>
+  </template>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+{
+  "account": {
+    "displayName": "SECOND TAKE",
+    "handle": "@secondtake.kpop",
+    "concept": "K-pop Live Versions & Covers",
+    "_note": "displayName/handle are placeholders — confirm availability before launch."
+  },
+  "timezone": "Asia/Seoul",
+  "publish": {
+    "platform": "instagram",
+    "localTime": "19:00",
+    "defaultMode": "dry_run",
+    "geoRestrictionSupported": false,
+    "targetRegions": [
+      "WORLDWIDE"
+    ]
+  },
+  "selection": {
+    "ruleVersion": "v1.0",
+    "weights": {
+      "versionDifference": 40,
+      "englishInfo": 25,
+      "timeliness": 20,
+      "recentDiversity": 15
+    },
+    "timelinessWindowDays": 14,
+    "diversityWindowDays": 7,
+    "differentiatingVersionTags": [
+      "cover",
+      "band",
+      "acoustic",
+      "orchestra",
+      "unplugged",
+      "rearranged",
+      "a_cappella",
+      "jazz",
+      "piano"
+    ]
+  },
+  "rights": {
+    "requiredCategories": [
+      "footage",
+      "music",
+      "performance"
+    ],
+    "requiredPlatform": "instagram",
+    "minDaysValidAfterPublish": 30,
+    "_minDaysNote": "A reel stays online after posting; a permission that ends the day after publish is treated as insufficient."
+  },
+  "render": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "graphicDurationSec": 8,
+    "maxClipDurationSec": 30,
+    "fontFile": null,
+    "_fontNote": "null = auto-detect (Windows: Malgun Gothic Bold, Linux: Noto Sans CJK Bold, macOS: Apple SD Gothic Neo). Set an absolute path to override.",
+    "templates": {
+      "original_graphic": [
+        "graphic-sequence",
+        "graphic-classic"
+      ],
+      "licensed_clip": [
+        "clip-standard"
+      ]
+    },
+    "_templatesNote": "Templates live in templates/reels/<id>.json. The list rotates by operating date (days since epoch mod length)."
+  },
+  "ai": {
+    "copyVariationsEnabled": false
+  },
+  "paths": {
+    "db": "storage/app.db",
+    "output": "output",
+    "testAssets": "storage/test-assets",
+    "evidence": "storage/evidence"
+  },
+  "analysis": {
+    "allin1": {
+      "enabled": false,
+      "pythonPath": "python3",
+      "script": "tools/allin1_analyze.py",
+      "timeoutSec": 900
+    },
+    "cacheDir": "storage/analysis",
+    "fixtureDir": "data/seed/analysis",
+    "labelPriority": [
+      "chorus",
+      "solo",
+      "bridge",
+      "verse",
+      "inst"
+    ],
+    "minClipSec": 8,
+    "_note": "all-in-one (mir-aidj/all-in-one) is optional. When disabled, cached results in cacheDir and — for TEST assets only — fixtures in fixtureDir are used."
+  }
+}
