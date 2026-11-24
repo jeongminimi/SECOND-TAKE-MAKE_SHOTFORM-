@@ -108,6 +108,12 @@ async function main() {
       if (!args.id) throw new Error('approve needs --id <suggestion id>');
       const r = approveSuggestion(db, cfg, Number(args.id));
       console.log(`Approved #${r.suggestion.id}. Reels to re-render on next run of their date: ${r.reelsToRerender.join(', ') || 'none'}`);
+    } else if (cmd === 'export') {
+      const { exportReel } = require('./export/exportReel');
+      const r = exportReel(db, cfg, { date: args.date ?? null, reelId: args.reel ?? null, dir: args.to ?? null });
+      console.log(`${r.reel.operating_date} · ${r.reel.performer_en} – ${r.reel.song_en} → ${r.dir}`);
+      const size = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
+      for (const f of r.files) console.log(`  ${f.name}  ${size(f.bytes)}`);
     } else if (cmd === 'status') status(db);
     else if (cmd === 'reset') {
       if (!args.yes) throw new Error('reset empties every table. Re-run with --yes.');

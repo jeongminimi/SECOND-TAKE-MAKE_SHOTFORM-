@@ -33,10 +33,10 @@ function ensureReel(db, cfg, selection) {
   const clip = plan.format === 'licensed_clip' ? clipAssetWithPermissions(db, cand.id, plan.clip_asset_id) : null;
   const copy = buildCopy(cand, { format: plan.format, clipAsset: clip, account: cfg.account });
   const reel = db.prepare(`
-    INSERT INTO reels (selection_id, clip_asset_id, output_format, template_id, format_reason, title_en, caption, official_link, guide_page_path, render_status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending') RETURNING *`)
+    INSERT INTO reels (selection_id, clip_asset_id, output_format, template_id, format_reason, format_reason_ko, title_en, caption, official_link, guide_page_path, render_status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending') RETURNING *`)
     .get(selection.id, clip ? clip.id : null, plan.format, pickTemplate(cfg, plan.format, selection.operating_date),
-      plan.format_reason, copy.title_en, copy.caption, copy.official_link, null);
+      plan.format_reason, plan.format_reason_ko ?? null, copy.title_en, copy.caption, copy.official_link, null);
   db.prepare('UPDATE reels SET guide_page_path = ? WHERE id = ?').run(`/guide/${reel.id}`, reel.id);
   return { reel: getReel(db, selection.id), created: true };
 }

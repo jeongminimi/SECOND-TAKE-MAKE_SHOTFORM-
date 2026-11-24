@@ -14,7 +14,8 @@
     "status": "node --disable-warning=ExperimentalWarning src/cli.js status",
     "start": "node --disable-warning=ExperimentalWarning src/web/server.js",
     "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 --test-force-exit \"test/**/*.test.js\"",
-    "analyze": "node --disable-warning=ExperimentalWarning src/cli.js analyze"
+    "analyze": "node --disable-warning=ExperimentalWarning src/cli.js analyze",
+    "export": "node --disable-warning=ExperimentalWarning src/cli.js export"
   },
   "dependencies": {
     "express": "^4.21.2"
