@@ -84,14 +84,26 @@ test('analysis: chorus suggested on downbeats inside the permitted range; rights
   assert.match(a5.reason, /\[music\] permission missing/);
 });
 
-test('analysis: fixtures are never used for real assets; a broken all-in-one install fails gracefully', async () => {
-  const { db, cfg } = await makeEnv();
+test('analysis: fixtures are never used for real assets; a broken all-in-one install fails gracefully', async (t) => {
+  const { db, cfg, ffmpeg } = await makeEnv();
   const real = { ...asset(db, 'A001-lumina-band-sample'), is_test_asset: 0 };
-  assert.equal(getAnalysis(cfg, real).analysis, null);
+
+  // Example data stands in for an analysis only on TEST material. A real file never gets it.
+  const noFallback = { ...cfg, analysis: { ...cfg.analysis, loudness: { enabled: false } } };
+  assert.equal(getAnalysis(noFallback, real).analysis, null, 'no fixture, and nothing invented, for a real asset');
+
   const broken = { ...cfg, analysis: { ...cfg.analysis, allin1: { ...cfg.analysis.allin1, enabled: true, pythonPath: 'python-does-not-exist' } } };
   const r = getAnalysis(broken, real);
   assert.equal(r.analysis, null);
   assert.match(r.reason, /all-in-one failed/);
+
+  // With the FFmpeg fallback on, a real file is measured rather than guessed at — and it is labelled
+  // for what it is, so nobody reads it as a structure analysis.
+  if (!ffmpeg) return t.skip('FFmpeg not available');
+  const got = getAnalysis(cfg, real);
+  assert.equal(got.analyzer, 'loudness', got.reason);
+  assert.notEqual(got.analyzer, 'fixture');
+  assert.equal(got.analysis.segments[0].label, 'peak');
 });
 
 test('analysis: approval changes the clip range, re-renders the SAME reel, and keeps rights checks', async (t) => {

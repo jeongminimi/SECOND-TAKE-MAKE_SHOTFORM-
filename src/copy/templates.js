@@ -53,9 +53,16 @@ function officialLink(c) {
   } catch { return c.official_url; }
 }
 
-/** One English line on why this version is worth watching. Evidence-backed text, else a factual fallback. */
+/**
+ * One English line on why this version is worth watching: the operator's own line when they wrote one,
+ * otherwise a factual fallback built from stored fields.
+ *
+ * An impression ("you stop hearing the original") cannot cite a source and does not need to — it is
+ * offered as the operator's view. `source` records which it is, so a claim of fact is never confused
+ * with a judgement. Facts in the caption (names, cover vs live, timestamps) still require evidence.
+ */
 function whyLine(c) {
-  if (c.why_watch_en && c.why_watch_evidence) return { text: c.why_watch_en, source: 'evidence' };
+  if (c.why_watch_en) return { text: c.why_watch_en, source: c.why_watch_evidence ? 'evidence' : 'operator' };
   const v = versionLabel(c).toLowerCase();
   const where = c.program_name ? ` from ${c.program_name}` : '';
   return { text: `${article(v)} ${v} of ${c.title_en}${where}.`, source: 'template_fact' };

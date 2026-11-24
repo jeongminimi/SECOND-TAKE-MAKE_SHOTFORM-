@@ -66,9 +66,10 @@ test('entry: a claim saved without its source is refused, and the refusal says w
   const { video, track } = buildChain(db);
   const base = { candidate_key: 'P101-refusals', source_video_id: video.id, track_id: track.id, performer_en: 'NOVA', performance_type: 'live' };
 
+  // "왜 볼 만한가" is deliberately absent: it is the operator's own impression, which has no source to
+  // cite and is no longer refused for lacking one. See test/entry-rules.test.js for that line.
   const cases = [
     ['version_evidence', { ...base, arrangement_tags: ['acoustic'] }],
-    ['why_watch_evidence', { ...base, why_watch_en: 'The chorus is rebuilt for strings.' }],
     ['segment_evidence', { ...base, segment_start_sec: 40, segment_end_sec: 70 }],
     ['occasion_evidence', { ...base, occasion_note: 'Ten years since debut.' }],
     ['watch_cues[0]', { ...base, watch_cues: [{ at_sec: 42, text_en: 'The band takes over.' }] }],

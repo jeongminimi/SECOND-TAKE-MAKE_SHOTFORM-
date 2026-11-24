@@ -147,6 +147,17 @@ function createApp(cfg, db) {
   const savedOk = (res, r) => res.json({ ok: true, row: r.row, warnings: r.warnings });
   const saveFailed = (res, e) => res.status(400).json({ ok: false, error: e.message, issues: e.issues ?? null });
   const handleSave = (res, fn) => { try { savedOk(res, fn()); } catch (e) { saveFailed(res, e); } };
+  /**
+   * For saves that change a clip range: the same reel is re-rendered on its own row, so the operator
+   * does not have to re-select the day. Selection, revision and score stay as they were.
+   */
+  const handleSaveAndRerender = async (res, fn) => {
+    try {
+      const r = fn();
+      for (const d of r.rerunDates ?? []) await serial(() => runDay(db, cfg, d));
+      res.json({ ok: true, row: r.row, warnings: r.warnings, rerunDates: r.rerunDates ?? [] });
+    } catch (e) { saveFailed(res, e); }
+  };
 
   app.get('/api/entry/lists', (req, res) => {
     res.json({
@@ -158,6 +169,7 @@ function createApp(cfg, db) {
       rightsCategories: cfg.rights.requiredCategories,
       categoryLabels: V.CATEGORY_KO,
       arrangementTags: cfg.selection.differentiatingVersionTags,
+      clipSeconds: { default: cfg.render.defaultClipDurationSec, max: cfg.render.maxClipDurationSec },
       today: todayIn(cfg.timezone),
     });
   });
@@ -166,8 +178,16 @@ function createApp(cfg, db) {
   app.post('/api/entry/video', (req, res) => handleSave(res, () => entry.saveVideo(db, req.body ?? {})));
   app.post('/api/entry/track', (req, res) => handleSave(res, () => entry.saveTrack(db, req.body ?? {})));
   app.post('/api/entry/candidate', (req, res) => handleSave(res, () => entry.saveCandidate(db, req.body ?? {})));
-  app.post('/api/entry/clip-asset', (req, res) => handleSave(res, () => entry.saveClipAsset(db, cfg, req.body ?? {})));
+  app.post('/api/entry/clip-asset', (req, res) => handleSaveAndRerender(res, () => entry.saveClipAsset(db, cfg, req.body ?? {})));
   app.post('/api/entry/permission', (req, res) => handleSave(res, () => entry.savePermission(db, req.body ?? {})));
+
+  // Step 5 writes the moment and its source onto the candidate, so the caption may carry "▶ 1:23".
+  app.post('/api/entry/segment', (req, res) => handleSaveAndRerender(res, () => entry.setCandidateSegment(db, {
+    candidate_id: Number(req.body?.candidate_id),
+    start_sec: req.body?.start_sec ?? null,
+    end_sec: req.body?.end_sec ?? null,
+    evidence: req.body?.evidence ?? null,
+  })));
 
   app.post('/api/entry/active', (req, res) => {
     const { kind, id, active } = req.body ?? {};

@@ -55,7 +55,10 @@ function scheduleDryRun(db, cfg, { reel, selection, clipAsset, scheduledAt, now 
   add(reel.caption.length <= 2200, `Caption ${reel.caption.length}/2200 chars`, `캡션 길이 ${reel.caption.length}자 (최대 2200자)`);
   const tags = (reel.caption.match(/#\w+/g) ?? []).length;
   add(tags <= 30, `${tags} hashtags (max 30)`, `해시태그 ${tags}개 (최대 30개)`);
-  add(/^https?:\/\//.test(reel.official_link), `Official link: ${reel.official_link}`, '공식 원본 링크가 캡션에 들어 있습니다');
+  // The operator checks this one first every time, so it names the address instead of just passing.
+  const hasLink = /^https?:\/\//.test(reel.official_link);
+  add(hasLink, `Official link: ${reel.official_link}`,
+    hasLink ? `공식 출처 링크 있음 — ${reel.official_link}` : '공식 출처 링크가 없습니다. 캡션에 원본을 가리킬 수 없습니다.');
   if (reel.output_format === 'licensed_clip' && clipAsset) {
     const r = evaluateClip(clipAsset, { cfg, publishAtUtc: scheduledAt, mode: 'dry_run' });
     add(r.eligible, r.eligible ? `Rights re-checked at ${scheduledAt}` : `Rights no longer valid: ${r.reasons.join(' | ')}`,

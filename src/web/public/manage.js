@@ -19,6 +19,9 @@ const STEPS = [
   { id: 'clip', n: 5, label: '클립 · 이용 허락', hint: '파일과 권리 3종' },
 ];
 
+/** Where the operator usually reads the interesting moment from. Offered as a placeholder, not filled in. */
+const SEGMENT_EVIDENCE_HINT = '유튜브 "가장 많이 본 구간" 그래프 기준';
+
 const RIGHTS_HINT = {
   footage: '영상을 촬영·보유한 쪽 (방송사, 공식 채널 등)',
   music: '작사·작곡·퍼블리싱 쪽',
@@ -70,7 +73,7 @@ function field(f, data) {
     input = `<select id="${id}" name="${f.name}">${(f.options ?? []).map((o) =>
       `<option value="${esc(o.value)}" ${String(o.value) === v ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`;
   } else if (f.type === 'checkbox') input = `<input type="checkbox" id="${id}" name="${f.name}" ${data?.[f.name] ? 'checked' : ''}>`;
-  else input = `<input type="${f.type ?? 'text'}" id="${id}" name="${f.name}" value="${esc(v)}" ${f.step ? `step="${f.step}"` : ''}>`;
+  else input = `<input type="${f.type ?? 'text'}" id="${id}" name="${f.name}" value="${esc(v)}" ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} ${f.step ? `step="${f.step}"` : ''}>`;
   return `<div class="fld ${f.type === 'checkbox' ? 'inline' : ''}" data-field="${f.name}">
     <label for="${id}">${esc(f.label)}${f.evidence ? ' <span class="req">근거 필수</span>' : ''}</label>
     ${input}${help}<div class="ferr" hidden></div></div>`;
@@ -148,11 +151,11 @@ const STEP_FIELDS = {
     { name: 'program_name', label: '프로그램·무대 이름', help: '예: Seoul Live Sessions' },
     { name: 'performance_type', label: '공연 유형', type: 'select', options: [{ value: '', label: '— 고르세요 —' }, { value: 'live', label: 'live (본인 곡 라이브)' }, { value: 'cover', label: 'cover (다른 사람 곡)' }] },
     { name: 'version_evidence', label: '버전 근거', evidence: true, type: 'textarea', help: '편곡 태그를 하나라도 고르면 반드시 필요합니다. 공식 제목·설명에서 그 차이가 확인되는 문구를 적으세요.' },
-    { name: 'why_watch_en', label: '왜 볼 만한가 (영어 한 줄)', help: '적으면 바로 아래 근거도 필요합니다. 비우면 사실만으로 만든 문장이 대신 쓰입니다.' },
-    { name: 'why_watch_evidence', label: '↳ 그 한 줄의 근거', evidence: true },
-    { name: 'segment_start_sec', label: '확인된 추천 구간 시작 (초)', type: 'number', help: '공식 챕터처럼 근거가 있는 시점만. 없으면 비워 두세요.' },
-    { name: 'segment_end_sec', label: '↳ 끝 (초)', type: 'number' },
-    { name: 'segment_evidence', label: '↳ 구간 근거', evidence: true },
+    { name: 'why_watch_en', label: '왜 볼 만한가 (영어 한 줄)', help: '직접 보고 느낀 점을 쓰세요. 출처가 있으면 함께 적어도 됩니다. 비우면 사실만으로 만든 문장이 대신 쓰입니다.' },
+    { name: 'why_watch_evidence', label: '↳ 그 한 줄의 근거 (선택)' },
+    { name: 'segment_start_sec', label: '확인된 추천 구간 시작', help: '1:23 처럼 분:초로 적어도 되고, 초 단위 숫자로 적어도 됩니다. 캡션에 ▶ 시각으로 들어갑니다.' },
+    { name: 'segment_end_sec', label: '↳ 끝' },
+    { name: 'segment_evidence', label: '↳ 그 시각의 출처', evidence: true, placeholder: SEGMENT_EVIDENCE_HINT },
     { name: 'occasion_note', label: '지금 소개할 이유 (선택)', help: '예: 공식 10주년. 적으면 근거가 필요합니다.' },
     { name: 'occasion_date', label: '↳ 해당 날짜', type: 'date' },
     { name: 'occasion_evidence', label: '↳ 그 이유의 근거', evidence: true },
@@ -268,6 +271,7 @@ function stepClip(L) {
   const cand = withClips.find((c) => String(c.id) === String(sel)) ?? withClips[0];
   const nameOf = (c) => `${c.performer_en ?? '공연자 미입력'} – ${c.title_en ?? c.title_ko ?? '곡 미연결'}`;
   const personalOn = Boolean(mstate.edit.clipAsset?.personal_use_only);
+  const clipMax = L.clipSeconds?.max ?? 30;
   const picker = `<div class="fld"><label for="clipCand">어느 후보의 클립인가요</label>
     <select id="clipCand">${withClips.map((c) => `<option value="${c.id}" ${c.id === cand.id ? 'selected' : ''}>${esc(nameOf(c))}</option>`).join('')}</select></div>`;
 
@@ -307,8 +311,11 @@ function stepClip(L) {
         <input type="file" id="clipFile" accept="video/*">
         <div class="upstate" id="clipUpState">${mstate.upload.clip ? `올림 완료: ${esc(mstate.upload.clip)}` : ''}</div>
         <input type="hidden" name="file_ref" value="${esc(val(mstate.upload.clip))}"><div class="ferr" hidden></div></div>
-      ${[{ name: 'source_start_sec', label: '원본에서 쓸 구간 시작 (초)', type: 'number' },
-        { name: 'source_end_sec', label: '↳ 끝 (초)', type: 'number', help: '길이는 30초를 넘을 수 없습니다.' },
+      ${[{ name: 'source_start_sec', label: '원본에서 쓸 구간 시작', placeholder: '1:23',
+          help: '유튜브에서 읽은 그대로 1:23 처럼 적어도 되고, 초 단위 숫자(83)로 적어도 됩니다. 시작을 적으면 끝이 자동으로 채워집니다.' },
+        { name: 'source_end_sec', label: '↳ 끝', placeholder: '1:48', help: `길이는 ${clipMax}초를 넘을 수 없습니다. 자동으로 채워진 값은 고쳐도 됩니다.` },
+        { name: 'segment_evidence', label: '그 시각을 어떻게 알았나요', placeholder: SEGMENT_EVIDENCE_HINT,
+          help: '적으면 캡션에 ▶ 시각이 들어갑니다. 비워 두면 전체 영상으로만 링크됩니다. 이 후보의 "추천 구간 근거"에 저장됩니다.' },
         { name: 'file_offset_sec', label: '파일 안에서의 시작 위치 (초)', type: 'number', help: '올린 파일이 원본 전체가 아니라 잘라낸 것이라면, 그 시작점이 원본의 몇 초인지에 맞춰 적습니다.' },
         { name: 'is_test_asset', label: '테스트 소재 (실제 발행에서 거부됨)', type: 'checkbox' },
         { name: 'personal_use_only', label: '개인 확인용 (권리 입력 건너뛰기)', type: 'checkbox',
@@ -395,8 +402,10 @@ async function submitEntry(form) {
     payload.platforms = ['instagram'];
     payload.territories = ['WORLDWIDE'];
   } else if (kind === 'clip-asset') {
+    // The range is sent as typed (1:23 or 83); the server reads both. segment_evidence is not a clip
+    // field — it belongs to the candidate, and goes in a second call once the clip itself is saved.
     payload = { candidate_id: Number(form.elements.candidate_id.value), file_ref: form.elements.file_ref.value || null,
-      ...readForm(form, [{ name: 'source_start_sec', type: 'number' }, { name: 'source_end_sec', type: 'number' },
+      ...readForm(form, [{ name: 'source_start_sec' }, { name: 'source_end_sec' },
         { name: 'file_offset_sec', type: 'number' }, { name: 'is_test_asset', type: 'checkbox' },
         { name: 'personal_use_only', type: 'checkbox' }, { name: 'notes' }, { name: 'asset_key' }]) };
   } else {
@@ -419,16 +428,38 @@ async function submitEntry(form) {
     return;
   }
   showIssues(form, r.warnings ?? []);
-  const warned = (r.warnings ?? []).length;
+  let warned = (r.warnings ?? []).length;
+
+  // The moment and its source live on the candidate, so a clip save carries them across in one step.
+  let segmentNote = '';
+  if (kind === 'clip-asset' && (form.elements.segment_evidence?.value ?? '').trim() !== '') {
+    const seg = await mapi('/api/entry/segment', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        candidate_id: payload.candidate_id,
+        start_sec: payload.source_start_sec,
+        end_sec: payload.source_end_sec,
+        evidence: form.elements.segment_evidence.value,
+      }),
+    });
+    if (seg.ok) {
+      warned += (seg.warnings ?? []).length;
+      segmentNote = ' 캡션에 ▶ 시각이 들어갑니다.'
+        + (seg.rerunDates?.length ? ` 구간이 바뀌어 ${seg.rerunDates.join(', ')} 영상을 다시 만들었습니다 (다시 고르지 않았습니다).` : '');
+    }
+    else { showIssues(form, seg.issues ?? []); segmentNote = ` 다만 추천 구간은 저장하지 못했습니다: ${seg.error ?? '빨간 칸을 확인하세요'}`; }
+  }
   const NEXT = {
     channel: '다음은 2단계(원본 영상)입니다.',
     video: '다음은 3단계(곡)입니다.',
     track: '다음은 4단계(공연 후보)입니다.',
     candidate: '아래에 이 후보가 어떤 형식으로 나갈지 표시했습니다. 공연 클립형으로 만들려면 5단계로 넘어가세요.',
-    'clip-asset': '이제 영상·음악·실연 세 가지 권리를 각각 입력하세요. 셋이 다 채워져야 공연 클립형이 됩니다.',
+    'clip-asset': (r.rerunDates ?? []).length
+      ? `구간이 바뀌어 ${r.rerunDates.join(', ')} 영상을 다시 만들었습니다 — 다시 고르지 않았으니 선곡 기록은 그대로입니다.`
+      : '이제 영상·음악·실연 세 가지 권리를 각각 입력하세요. 셋이 다 채워져야 공연 클립형이 됩니다.',
     permission: '나머지 권리도 같은 방식으로 채우면 공연 클립형으로 바뀝니다.',
   };
-  notice(`저장했습니다. ${warned ? `확인할 점이 ${warned}가지 있습니다 (노란 설명). ` : ''}${NEXT[kind] ?? ''}`);
+  notice(`저장했습니다.${segmentNote} ${warned ? `확인할 점이 ${warned}가지 있습니다 (노란 설명). ` : ''}${NEXT[kind] ?? ''}`);
 
   mstate.edit = {};
   mstate.upload = {};
@@ -537,8 +568,30 @@ document.addEventListener('click', async (e) => {
   if (cancel) { mstate.edit = {}; mstate.upload = {}; mstate.draftCues = []; await renderManage(); }
 });
 
+/** `1:23` or `83` → seconds. Mirrors parseTimecode() on the server; null when it cannot be read. */
+function toSeconds(v) {
+  const s = String(v ?? '').trim();
+  if (s === '') return null;
+  if (/^\d+$/.test(s)) return Number(s);
+  const m = /^(?:(\d+):)?(\d{1,2}):(\d{1,2})$/.exec(s);
+  if (!m || Number(m[2]) > 59 || Number(m[3]) > 59) return null;
+  return (Number(m[1] ?? 0) * 3600) + (Number(m[2]) * 60) + Number(m[3]);
+}
+const mmssOf = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+
 document.addEventListener('change', async (e) => {
   if (e.target.id === 'clipCand') { mstate.edit.clipCandidateId = Number(e.target.value); await renderManage(); return; }
+  // Typing only a start time fills the end in, so the usual case needs one number instead of two.
+  if (e.target.name === 'source_start_sec') {
+    const form = e.target.closest('form');
+    const end = form?.elements.source_end_sec;
+    const start = toSeconds(e.target.value);
+    if (end && start != null && String(end.value).trim() === '') {
+      const span = Math.min(mstate.lists.clipSeconds?.default ?? 25, mstate.lists.clipSeconds?.max ?? 30);
+      end.value = mmssOf(start + span);
+    }
+    return;
+  }
   // Ticking "개인 확인용" says the rights below will not be filled in, so they stop looking like a to-do.
   if (e.target.name === 'personal_use_only') {
     $('#clipRights')?.classList.toggle('dimmed', e.target.checked);

@@ -14,6 +14,7 @@ const path = require('node:path');
 const { tx } = require('../db');
 const { toStoredPath } = require('../config');
 const V = require('./validate');
+const { parseTimecode } = require('../util/time');
 
 /**
  * Identifiers are the program's business, not the operator's. They are built from the names that
@@ -38,12 +39,37 @@ function uniqueKey(db, table, column, base) {
 }
 
 const num = (v) => (v === '' || v === null || v === undefined ? null : Number(v));
+/** A position in a video, typed either as `1:23` or as a number of seconds. See util/time.js. */
+const secs = (v) => parseTimecode(v);
 const str = (v) => (v === '' || v === undefined ? null : v);
 const bool = (v, dflt = 0) => (v === undefined || v === null ? dflt : (v ? 1 : 0));
 
 /** Returns {row, issues}; issues may hold warnings even when the save succeeded. */
-function saved(row, issues) {
-  return { row, issues, warnings: issues.filter((i) => i.level === 'warn') };
+function saved(row, issues, extra = {}) {
+  return { row, issues, warnings: issues.filter((i) => i.level === 'warn'), ...extra };
+}
+
+/**
+ * Changing where a clip starts changes the video and the caption, but not who was chosen that day.
+ * So the reels built from it are put back to `pending` and re-rendered on the SAME row by re-running
+ * their date — no re-selection, no new revision, and the record of why that day was picked is kept.
+ *
+ * @returns {string[]} the operating dates that need re-running
+ */
+function markReelsForRerender(db, { clipAssetId = null, candidateId = null }) {
+  const where = clipAssetId != null
+    ? { sql: 'r.clip_asset_id = ?', arg: clipAssetId }
+    : { sql: 'ds.candidate_id = ?', arg: candidateId };
+  const rows = db.prepare(`SELECT r.id, ds.operating_date FROM reels r
+                             JOIN daily_selections ds ON ds.id = r.selection_id
+                            WHERE ${where.sql}`).all(where.arg);
+  if (!rows.length) return [];
+  const live = db.prepare(`SELECT 1 FROM publish_jobs WHERE mode = 'live' AND reel_id IN (${rows.map(() => '?').join(',')})`)
+    .get(...rows.map((r) => r.id));
+  if (live) throw new Error('A live publish job already used this reel; register a new clip instead of changing this one');
+  db.prepare(`UPDATE reels SET render_status = 'pending', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
+                WHERE id IN (${rows.map(() => '?').join(',')})`).run(...rows.map((r) => r.id));
+  return [...new Set(rows.map((r) => r.operating_date))].sort();
 }
 
 function saveChannel(db, d) {
@@ -112,8 +138,8 @@ function saveCandidate(db, d) {
     ...d,
     arrangement_tags: tags,
     watch_cues: cues,
-    segment_start_sec: num(d.segment_start_sec),
-    segment_end_sec: num(d.segment_end_sec),
+    segment_start_sec: secs(d.segment_start_sec),
+    segment_end_sec: secs(d.segment_end_sec),
   };
   const issues = V.validateCandidate(shaped);
   V.assertValid(issues);
@@ -158,7 +184,7 @@ function saveClipAsset(db, cfg, d) {
     const cand = db.prepare('SELECT candidate_key FROM performance_candidates WHERE id = ?').get(d.candidate_id);
     d = { ...d, asset_key: uniqueKey(db, 'clip_assets', 'asset_key', `${slug(cand?.candidate_key) || 'clip'}-clip`) };
   }
-  const shaped = { ...d, source_start_sec: num(d.source_start_sec), source_end_sec: num(d.source_end_sec) };
+  const shaped = { ...d, source_start_sec: secs(d.source_start_sec), source_end_sec: secs(d.source_end_sec) };
   const issues = V.validateClipAsset(shaped);
   V.assertValid(issues);
   return tx(db, () => {
@@ -178,7 +204,10 @@ function saveClipAsset(db, cfg, d) {
                       personal_use_only = excluded.personal_use_only, notes = excluded.notes
                     RETURNING *`).get(...vals);
     if (!row) throw new Error(`clip asset ${d.id} not found`);
-    return saved(row, issues);
+    // A range that moved has to reach the finished video; a clip registered for the first time has no
+    // reel to re-render yet, so this is a no-op for new clips.
+    const rerunDates = markReelsForRerender(db, { clipAssetId: row.id });
+    return saved(row, issues, { rerunDates });
   });
 }
 
@@ -210,6 +239,33 @@ function savePermission(db, d) {
 }
 
 const ACTIVATABLE = { channel: 'source_channels', video: 'source_videos', candidate: 'performance_candidates' };
+
+/**
+ * Records where the interesting moment is and how the operator knows — the two fields that let the
+ * caption carry `▶ 1:23` instead of a bare link. Written from step 5, where the clip range is typed
+ * off the YouTube "most replayed" graph, so the time and its source arrive together.
+ *
+ * Touches only these two columns: everything else about the candidate is left exactly as it was.
+ */
+function setCandidateSegment(db, { candidate_id, start_sec, end_sec = null, evidence }) {
+  const start = secs(start_sec);
+  const end = secs(end_sec);
+  const cand = db.prepare('SELECT * FROM performance_candidates WHERE id = ?').get(candidate_id);
+  if (!cand) throw new Error(`candidate ${candidate_id} not found`);
+  // The stored row keeps these two as JSON text; validateCandidate works on the parsed shape.
+  const issues = V.validateCandidate({
+    ...cand,
+    arrangement_tags: JSON.parse(cand.arrangement_tags || '[]'),
+    watch_cues: JSON.parse(cand.watch_cues || '[]'),
+    segment_start_sec: start, segment_end_sec: end, segment_evidence: evidence ?? null,
+  });
+  V.assertValid(issues);
+  return tx(db, () => {
+    const row = db.prepare(`UPDATE performance_candidates SET segment_start_sec = ?, segment_end_sec = ?, segment_evidence = ?
+                              WHERE id = ? RETURNING *`).get(start, end, str(evidence), candidate_id);
+    return saved(row, issues, { rerunDates: markReelsForRerender(db, { candidateId: candidate_id }) });
+  });
+}
 
 function setActive(db, kind, id, active) {
   const table = ACTIVATABLE[kind];
@@ -256,6 +312,6 @@ function storeEvidenceFile(cfg, filename, buffer) {
 }
 
 module.exports = {
-  saveChannel, saveVideo, saveTrack, saveCandidate, saveClipAsset, savePermission, setActive,
+  saveChannel, saveVideo, saveTrack, saveCandidate, saveClipAsset, savePermission, setActive, setCandidateSegment,
   storeClipFile, storeEvidenceFile, safeName, slug, uniqueKey,
 };

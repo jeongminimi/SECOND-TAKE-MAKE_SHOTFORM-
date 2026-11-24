@@ -58,11 +58,32 @@ function getAnalysis(cfg, asset) {
       return { analysis: validateAnalysis(JSON.parse(fs.readFileSync(fx, 'utf8')), fx), analyzer: 'fixture', ref: toStoredPath(cfg, fx) };
     }
   }
+  // Last resort, and the only one that works today: loudness from the FFmpeg already installed.
+  // Weaker than structure analysis, so it runs only when nothing better is available, and it is
+  // cached like the rest so the operator can see exactly what the suggestion was based on.
+  if (ac.loudness?.enabled) {
+    const src = fromStoredPath(cfg, asset.file_ref);
+    if (!fs.existsSync(src)) return { analysis: null, reason: `clip file missing: ${asset.file_ref}` };
+    const { analyzeLoudness } = require('./loudness');
+    const got = analyzeLoudness(cfg, src);
+    if (!got.analysis) return { analysis: null, reason: got.reason };
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(cached, JSON.stringify(got.analysis, null, 2), 'utf8');
+    return { analysis: validateAnalysis(got.analysis, 'loudness'), analyzer: 'loudness', ref: toStoredPath(cfg, cached) };
+  }
   return { analysis: null, reason: 'no analysis available (all-in-one disabled and no cached result)' };
 }
 
-/** Permitted source-time window = intersection of every required category's permitted range. */
+/**
+ * Permitted source-time window = intersection of every required category's permitted range.
+ *
+ * A personal-use clip is the exception, and only because it has no permissions by design
+ * (PERSONAL-TEST-MODE): it is the operator's own file and the live path refuses it outright. There is
+ * no permitted range to stay inside, so the window is the whole file. Nothing that matters is loosened
+ * — a suggestion changes nothing until approved, and an approved one still cannot be published.
+ */
 function permittedWindow(cfg, asset) {
+  if (asset.personal_use_only) return { window: [-Infinity, Infinity], scope: 'personal' };
   let lo = -Infinity, hi = Infinity;
   for (const cat of cfg.rights.requiredCategories) {
     const p = asset.permissions.find((x) => x.rights_category === cat);
@@ -72,7 +93,7 @@ function permittedWindow(cfg, asset) {
     hi = Math.min(hi, p.permitted_end_sec);
   }
   if (!(hi > lo)) return { window: null, reason: 'permitted ranges of the rights categories do not overlap' };
-  return { window: [lo, hi] };
+  return { window: [lo, hi], scope: 'permitted' };
 }
 
 /**
@@ -80,8 +101,11 @@ function permittedWindow(cfg, asset) {
  * Times in `analysis` are file times; `base` converts file → source time (source = base + fileTime).
  */
 function suggestSegment(cfg, asset, analysis) {
-  const { window, reason } = permittedWindow(cfg, asset);
+  const { window, reason, scope } = permittedWindow(cfg, asset);
   if (!window) return { suggestion: null, reason };
+  const where = scope === 'personal'
+    ? 'whole file (personal-use clip — rights not verified, never publishable)'
+    : `inside permitted ${window[0]}–${window[1]}s`;
   const base = asset.source_start_sec - asset.file_offset_sec;
   const fileDur = analysis.duration ?? Math.max(...analysis.segments.map((s) => s.end));
   const w0 = Math.max(0, window[0] - base), w1 = Math.min(fileDur, window[1] - base);
@@ -97,23 +121,27 @@ function suggestSegment(cfg, asset, analysis) {
     for (const seg of segs) {
       const lo = Math.max(seg.start, w0), hi = Math.min(seg.end, w1);
       if (hi - lo < minClipSec) continue;
-      const start = downs.find((d) => d >= lo - EPS && d < hi) ?? lo;
+      const snapped = downs.find((d) => d >= lo - EPS && d < hi);
+      const start = snapped ?? lo;
       const limit = Math.min(hi, start + maxClip);
       let end = [...downs].reverse().find((d) => d <= limit + EPS && d - start >= minClipSec);
-      let aligned = end != null;
-      if (end == null) { end = limit; aligned = false; }
+      const aligned = end != null;
+      if (end == null) end = limit;
       if (end - start < minClipSec) continue;
+      // Said exactly: an analyzer with no bar-line data (loudness) must not claim a downbeat cut.
+      const cutNote = downs.length === 0
+        ? 'at the measured boundaries (no bar-line data)'
+        : `${snapped != null ? 'start on downbeat' : 'start at section boundary'}, ${aligned ? 'end on downbeat' : 'end at range limit'}`;
       return {
         suggestion: {
           label, file_start_sec: r3(start), file_end_sec: r3(end),
           source_start_sec: r3(base + start), source_end_sec: r3(base + end), bpm: analysis.bpm ?? null,
-          notes: `${label} ${r3(seg.start)}–${r3(seg.end)}s in file; cut ${aligned ? 'on downbeats' : 'start on downbeat, end at range limit'}; ` +
-            `inside permitted ${window[0]}–${window[1]}s`,
+          notes: `${label} ${r3(seg.start)}–${r3(seg.end)}s in file; cut ${cutNote}; ${where}`,
         },
       };
     }
   }
-  return { suggestion: null, reason: `no ${labelPriority.join('/')} section of ≥${minClipSec}s fits inside permitted ${window[0]}–${window[1]}s` };
+  return { suggestion: null, reason: `no ${labelPriority.join('/')} section of ≥${minClipSec}s fits ${where}` };
 }
 
 /** Analyzes clip assets (all, or one asset_key) and stores new proposals. */

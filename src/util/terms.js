@@ -38,8 +38,9 @@
     permissionStatus: { granted: '허락받음', pending: '요청 중', denied: '거절', revoked: '철회됨' },
     // segment_suggestions.status / .label / .analyzer
     suggestionStatus: { proposed: '검토 대기', approved: '승인됨', rejected: '거절됨', superseded: '대체됨' },
-    section: { chorus: '후렴', verse: '절', bridge: '브릿지', intro: '도입부', outro: '마무리', solo: '솔로', inst: '연주' },
-    analyzer: { allin1: '곡 구조 분석', fixture: '예시 데이터(실제 분석 아님)' },
+    // `peak` is loudness, not structure: loud is not the same as chorus, so the wording never says it is.
+    section: { chorus: '후렴', verse: '절', bridge: '브릿지', intro: '도입부', outro: '마무리', solo: '솔로', inst: '연주', peak: '소리가 가장 큰 구간 (후렴일 가능성)' },
+    analyzer: { allin1: '곡 구조 분석', fixture: '예시 데이터(실제 분석 아님)', loudness: '음량 분석 (구조 분석 아님)' },
     // daily_selections.status
     selectionStatus: { selected: '선곡됨', skipped: '건너뜀' },
     // performance_candidates.performance_type

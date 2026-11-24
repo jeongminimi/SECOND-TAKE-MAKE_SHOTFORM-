@@ -53,6 +53,8 @@
     "fps": 30,
     "graphicDurationSec": 8,
     "maxClipDurationSec": 30,
+    "defaultClipDurationSec": 25,
+    "_defaultClipNote": "When the operator types only a start time, the end is filled in as start + this, capped at maxClipDurationSec. They can change it.",
     "fontFile": null,
     "_fontNote": "null = auto-detect (Windows: Malgun Gothic Bold, Linux: Noto Sans CJK Bold, macOS: Apple SD Gothic Neo). Set an absolute path to override.",
     "templates": {
@@ -83,6 +85,10 @@
       "script": "tools/allin1_analyze.py",
       "timeoutSec": 900
     },
+    "loudness": {
+      "enabled": true
+    },
+    "_loudnessNote": "Fallback analyzer using the installed FFmpeg (astats RMS per second). Loudness only — it labels its result 'peak', never 'chorus'. Used when all-in-one is off and no cache or fixture exists.",
     "cacheDir": "storage/analysis",
     "fixtureDir": "data/seed/analysis",
     "labelPriority": [
@@ -90,9 +96,10 @@
       "solo",
       "bridge",
       "verse",
-      "inst"
+      "inst",
+      "peak"
     ],
     "minClipSec": 8,
-    "_note": "all-in-one (mir-aidj/all-in-one) is optional. When disabled, cached results in cacheDir and — for TEST assets only — fixtures in fixtureDir are used."
+    "_note": "all-in-one (mir-aidj/all-in-one) is optional. When disabled, cached results in cacheDir and — for TEST assets only — fixtures in fixtureDir are used, then the loudness fallback."
   }
 }

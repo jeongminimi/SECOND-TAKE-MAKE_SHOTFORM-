@@ -181,10 +181,24 @@ function segCard(d) {
   </div>`).join('') + '<p class="small muted">자동 분석으로 찾은 구간은 공식 타임스탬프가 아니므로 캡션의 ▶ 시점 표시에는 쓰지 않습니다.</p>';
 }
 
+/**
+ * The one thing the operator checks on every post: that the official source is in the caption, and
+ * which address it is. Shown in the open, not behind a <details>, and never only as a tick mark.
+ */
+function officialSourceLine(d) {
+  const url = d.reel?.official_link;
+  if (!url || !/^https?:\/\//.test(url)) {
+    return '<p class="reason"><span class="badge bad">공식 출처 링크 없음</span> 캡션이 원본을 가리킬 수 없습니다.</p>';
+  }
+  return `<p class="reason"><span class="badge ok">공식 출처 링크 있음</span>
+    <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a></p>`;
+}
+
 function jobCard(d) {
   const job = d.jobs?.[0];
   if (!job) {
     return `<h3>다음에 할 일</h3><p>영상 제작이 끝나지 않아 예약을 만들지 않았습니다. <b>같은 날짜로 다시 실행</b>하면 이어서 처리합니다.</p>
+      ${officialSourceLine(d)}
       ${d.reel.render_error ? `<details><summary class="small muted">실패 내용 보기</summary><p class="reason">${esc(d.reel.render_error)}</p></details>` : ''}`;
   }
   const p = job.plan ?? {};
@@ -194,6 +208,7 @@ function jobCard(d) {
       <dt>올릴 시각</dt><dd>${esc(p.scheduled_local ?? '')}</dd>
       <dt>올리는 방식</dt><dd>${esc(ko('mode', job.mode))} — 실제로 올라가지 않습니다</dd>
     </dl>
+    ${officialSourceLine(d)}
     <details><summary class="small muted">예행 연습 점검 내역 보기</summary>
       <ul class="checks">${(p.checks ?? []).map((c) => `<li class="${c.ok ? '' : 'no'}">${esc(c.label_ko ?? c.label)}</li>`).join('')}</ul>
       <h4 class="small muted" style="margin:14px 0 6px">실제로 올릴 때 확인할 것</h4>

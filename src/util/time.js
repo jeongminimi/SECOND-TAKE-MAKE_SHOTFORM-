@@ -52,10 +52,26 @@ function assertDate(s) {
   }
 }
 
+/**
+ * Reads a position in a video the way the operator reads it off YouTube: `1:23`, `1:02:03`, or a plain
+ * number of seconds. Blank → null. Anything else → NaN, so a caller can refuse it instead of storing 0.
+ */
+function parseTimecode(v) {
+  if (v == null || String(v).trim() === '') return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? Math.round(v) : NaN;
+  const s = String(v).trim();
+  if (/^\d+(\.\d+)?$/.test(s)) return Math.round(Number(s));
+  const m = /^(?:(\d+):)?(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/.exec(s);
+  if (!m) return NaN;
+  const [, h, mm, ss] = m;
+  if (Number(mm) > 59 || Number(ss) >= 60) return NaN;
+  return Math.round((Number(h ?? 0) * 3600) + (Number(mm) * 60) + Number(ss));
+}
+
 function fmtTimestamp(sec) {
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
   const pad = (n) => String(n).padStart(2, '0');
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
-module.exports = { zonedToUtcIso, todayIn, endOfLocalDateUtc, addDays, localDateOf, daysBetween, assertDate, fmtTimestamp, tzOffsetMs };
+module.exports = { zonedToUtcIso, todayIn, endOfLocalDateUtc, addDays, localDateOf, daysBetween, assertDate, fmtTimestamp, parseTimecode, tzOffsetMs };

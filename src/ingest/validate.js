@@ -97,10 +97,13 @@ function validateCandidate(c) {
       '편곡 태그(밴드·어쿠스틱 등)를 붙이려면 그 차이가 확인되는 출처를 "버전 근거"에 함께 적어야 합니다.'));
   }
 
-  if (has(c.why_watch_en) && isBlank(c.why_watch_evidence)) {
-    out.push(block('why_watch_evidence', 'why_watch_evidence_required',
-      `candidate ${c.candidate_key}: why_watch_en needs why_watch_evidence`,
-      '"왜 볼 만한가" 한 줄을 적으려면 근거를 함께 적어야 합니다. 근거를 못 찾겠으면 한 줄을 비워 두세요 — 사실만으로 만든 문장이 대신 쓰입니다.'));
+  // "왜 볼 만한가" is the operator's own impression of a performance. An impression has no source to
+  // cite, and this account exists to carry it, so no evidence is required. Facts below still are.
+  for (const f of ['segment_start_sec', 'segment_end_sec']) {
+    if (Number.isNaN(c[f])) {
+      out.push(block(f, 'timecode_unreadable', `candidate ${c.candidate_key}: ${f} is not a time`,
+        '시각을 읽을 수 없습니다. 1:23 처럼 분:초로 적거나, 초 단위 숫자(83)로 적어 주세요.'));
+    }
   }
 
   const hasSegment = c.segment_start_sec != null || c.segment_end_sec != null;
@@ -146,6 +149,14 @@ function validateClipAsset(a) {
     out.push(block('file_ref', 'file_ref_is_url',
       `clip asset ${a.asset_key}: file_ref must be a local file, not a URL — an official link is not a file`,
       '클립 자리에 링크를 넣을 수 없습니다. 공식 링크는 파일이 아니며, 링크를 찾은 것이 이용 허락을 받은 것도 아닙니다.'));
+  }
+  // A timecode that could not be read arrives as NaN. Without this it would slip past the two checks
+  // below (NaN is neither null nor less than anything) and be stored as a broken range.
+  for (const f of ['source_start_sec', 'source_end_sec']) {
+    if (Number.isNaN(a[f])) {
+      out.push(block(f, 'timecode_unreadable', `clip asset ${a.asset_key}: ${f} is not a time`,
+        '시각을 읽을 수 없습니다. 1:23 처럼 분:초로 적거나, 초 단위 숫자(83)로 적어 주세요.'));
+    }
   }
   if (a.source_start_sec == null || a.source_end_sec == null) {
     out.push(block('source_start_sec', 'source_range_required', `clip asset ${a.asset_key}: source range is required`, '원본에서 사용할 구간의 시작·끝(초)을 입력하세요.'));
