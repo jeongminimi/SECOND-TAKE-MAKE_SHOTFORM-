@@ -20,6 +20,7 @@ const mmss = (v) => TERMS.mmss(v);
 /** The identifier is kept, but it stops competing with the name a person actually reads. */
 const idTag = (v) => (v ? `<div class="k">${esc(v)}</div>` : '');
 const songOf = (s) => [s.performer_en, s.song_title_en ?? s.song_title_ko].filter(Boolean).join(' – ') || s.title_en || '—';
+const size = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
 
 let state = { overview: null, current: null };
 
@@ -229,6 +230,11 @@ function previewCard(d) {
     <div class="tabs"><button data-tab="mp4" class="${hasVideo ? 'on' : ''}" ${hasVideo ? '' : 'disabled'}>완성본</button><button data-tab="html" class="${hasVideo ? '' : 'on'}">구성 미리보기</button></div>
     <div class="phone" id="phone">${hasVideo ? `<video src="${r.video_url}" poster="${r.poster_url}" controls loop playsinline></video>` : mockHtml(d)}</div>
     <p class="small muted">${hasVideo ? '이 영상이 그대로 올라갑니다.' : `아직 영상이 없습니다 (${esc(ko('renderStatus', r.render_status))}) — 구성만 보여 줍니다.`}</p>
+    <div class="actions"><button class="btn" id="exportBtn" data-reel="${r.id}" ${hasVideo ? '' : 'disabled'}>영상 내보내기</button></div>
+    <p class="small muted">${hasVideo
+      ? '영상·첫 화면·캡션·설명을 이 릴스만의 폴더에 모아 둡니다. 다른 릴스를 내보낸 폴더는 지워지지 않습니다.'
+      : `영상이 완성되지 않아 내보낼 수 없습니다 (${esc(ko('renderStatus', r.render_status))}). 같은 날짜를 다시 실행하면 이어서 만듭니다.`}</p>
+    <div class="upstate paths" id="exportResult"></div>
     <details><summary class="small muted">제작 정보</summary><dl class="kv">
       <dt>디자인 틀</dt><dd>${esc(ko('template', r.template_id) || '-')}</dd>
       <dt>파일</dt><dd class="k">${esc(r.output_path ?? '없음')}</dd></dl></details>`;
@@ -300,6 +306,26 @@ async function showDay(date) {
     root.querySelectorAll('[data-tab]').forEach((x) => x.classList.toggle('on', x === b));
     $('#phone').innerHTML = b.dataset.tab === 'mp4' ? `<video src="${d.reel.video_url}" poster="${d.reel.poster_url}" controls loop playsinline></video>` : mockHtml(d);
   }));
+  const exportBtn = $('#exportBtn');
+  if (exportBtn && !exportBtn.disabled) {
+    exportBtn.addEventListener('click', async () => {
+      const was = exportBtn.textContent;
+      exportBtn.disabled = true; exportBtn.textContent = '내보내는 중…';
+      try {
+        const r = await api('/api/export', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reelId: Number(exportBtn.dataset.reel) }),
+        });
+        // The path is the point of the button, so it is shown verbatim and left on screen to copy.
+        $('#exportResult').textContent = `${r.dir}\n${r.files.map((f) => `  ${f.name}  ${size(f.bytes)}`).join('\n')}`;
+        notice('내보냈습니다. 아래 경로를 복사해 탐색기 주소창에 붙여 넣으면 폴더가 열립니다.');
+      } catch (e) {
+        $('#exportResult').textContent = '';
+        notice(`내보내지 못했습니다: ${e.message}`, true);
+      } finally {
+        exportBtn.disabled = false; exportBtn.textContent = was;
+      }
+    });
+  }
   $('#copyCaption').addEventListener('click', async (e) => {
     try { await navigator.clipboard.writeText(d.reel.caption); e.target.textContent = '복사했습니다 ✓'; }
     catch { const r = document.createRange(); r.selectNodeContents($('#captionText')); getSelection().removeAllRanges(); getSelection().addRange(r); e.target.textContent = '선택됨 — Ctrl+C 를 누르세요'; }

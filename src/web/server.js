@@ -13,6 +13,7 @@ const V = require('../ingest/validate');
 const { todayIn, fmtTimestamp } = require('../util/time');
 const { SEED } = require('../cli');
 const { analyzeAssets, approveSuggestion, rejectSuggestion, suggestionsForCandidate } = require('../analysis/structure');
+const { exportReel } = require('../export/exportReel');
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -76,6 +77,16 @@ function createApp(cfg, db) {
     try {
       const r = await serial(() => runDay(db, cfg, date, { reselect: Boolean(req.body?.reselect) }));
       res.json({ ok: true, date, selectionReused: r.selectionReused, reelCreated: r.reelCreated, rendered: r.rendered, status: r.selection.status });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  // Copies one finished reel into its own folder the operator can open. Same call as `npm run export`.
+  app.post('/api/export', (req, res) => {
+    try {
+      const r = exportReel(db, cfg, { reelId: req.body?.reelId ?? null, date: req.body?.date ?? null });
+      res.json({ ok: true, dir: r.dir, files: r.files.map((f) => ({ name: f.name, bytes: f.bytes })) });
     } catch (e) {
       res.status(400).json({ ok: false, error: e.message });
     }

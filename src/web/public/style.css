@@ -150,3 +150,7 @@ details.advanced[open] { padding-bottom: 2px; }
 
 /* A section the operator has chosen not to fill in (e.g. rights for a personal-use clip). */
 .dimmed { opacity: .45; }
+
+/* Export result: a folder path plus one line per file, kept selectable so it can be copied. */
+.upstate.paths { white-space: pre-wrap; user-select: all; }
+

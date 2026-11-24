@@ -28,7 +28,7 @@ function pickReel(db, { date, reelId }) {
   return db.prepare(`${REEL_SQL} WHERE r.render_status = 'done' ORDER BY ds.operating_date DESC LIMIT 1`).get();
 }
 
-function note(r, job, plan) {
+function note(r, job, plan, videoName) {
   const checks = (plan.checks ?? []).map((c) => `  ${c.ok ? '[확인]' : '[문제]'} ${c.label_ko ?? c.label}`).join('\n');
   const live = (plan.live_readiness ?? []).map((n) => `  - ${n.ko ?? n.en ?? n}`).join('\n');
   const rev = T.revision(r.revision);
@@ -63,7 +63,8 @@ ${checks || '  (없음)'}
 ${live || '  (없음)'}
 
 ■ 파일 설명
-  릴스영상.mp4         1080x1920 세로 영상. 이 파일이 그대로 올라갑니다.
+  ${videoName}
+                       1080x1920 세로 영상. 이 파일이 그대로 올라갑니다.
   첫화면.png           영상 첫 장면 이미지입니다.
   인스타에_올릴_글.txt   캡션 전문입니다. 영어 그대로 올립니다.
                        해외 K팝 팬이 대상이라 번역하지 않습니다.
@@ -73,7 +74,24 @@ ${live || '  (없음)'}
 `;
 }
 
-/** Writes the folder and returns what landed in it. Replaces a previous export of the same name. */
+/**
+ * Strips what Windows refuses in a file or folder name, so an English headline can be used as one.
+ * A trailing space or dot is also illegal, and a long name is cut rather than rejected.
+ */
+function safeName(s, fallback) {
+  const cleaned = String(s ?? '')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80)
+    .replace(/[ .]+$/, '');
+  return cleaned || fallback;
+}
+
+/**
+ * Writes one reel into its own folder under output/내보내기 and returns what landed in it.
+ * Only this reel's folder is replaced — earlier exports of other reels stay where they are.
+ */
 function exportReel(db, cfg, { date = null, reelId = null, dir = null } = {}) {
   const r = pickReel(db, { date, reelId });
   if (!r) throw new Error(date ? `No reel for ${date}. Run that date first.` : 'No rendered reel to export yet.');
@@ -81,7 +99,10 @@ function exportReel(db, cfg, { date = null, reelId = null, dir = null } = {}) {
 
   const job = db.prepare("SELECT * FROM publish_jobs WHERE reel_id = ? AND mode = 'dry_run'").get(r.id);
   const plan = json.parse(job?.plan_json, {});
-  const outDir = dir ? path.resolve(dir) : path.join(cfg.resolved.output, '내보내기');
+  const title = safeName(r.title_en, `reel-${r.id}`);
+  const outDir = dir
+    ? path.resolve(dir)
+    : path.join(cfg.resolved.output, '내보내기', `${r.operating_date}_${title}`);
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
 
@@ -93,7 +114,8 @@ function exportReel(db, cfg, { date = null, reelId = null, dir = null } = {}) {
     fs.copyFileSync(src, path.join(outDir, name));
     files.push({ name, bytes: fs.statSync(path.join(outDir, name)).size });
   };
-  copy(r.output_path, '릴스영상.mp4');
+  const videoName = `${title}.mp4`;
+  copy(r.output_path, videoName);
   copy(r.poster_path, '첫화면.png');
 
   const write = (name, text) => {
@@ -101,9 +123,9 @@ function exportReel(db, cfg, { date = null, reelId = null, dir = null } = {}) {
     files.push({ name, bytes: Buffer.byteLength(text, 'utf8') });
   };
   write('인스타에_올릴_글.txt', r.caption);
-  write('읽어보기.txt', note(r, job, plan));
+  write('읽어보기.txt', note(r, job, plan, videoName));
 
   return { dir: outDir, reel: r, files };
 }
 
-module.exports = { exportReel };
+module.exports = { exportReel, safeName };
