@@ -16,14 +16,18 @@
     ]
   },
   "selection": {
-    "ruleVersion": "v1.0",
+    "ruleVersion": "v2.0",
     "weights": {
-      "versionDifference": 40,
-      "englishInfo": 25,
-      "timeliness": 20,
-      "recentDiversity": 15
+      "versionDifference": 50,
+      "englishInfo": 30,
+      "recentDiversity": 20
     },
-    "timelinessWindowDays": 14,
+    "versionTiers": {
+      "cover": 50,
+      "arrangement": 35,
+      "live": 0
+    },
+    "_versionTiersNote": "The account exists to find songs worth hearing again as someone else's performance. A cover of another artist's song is the strongest form of that, a different arrangement is weaker, and a straight live rendition is not it at all. v2.0 dropped the 'timeliness' item entirely: a hidden gem is usually an old video, and rewarding recency worked against the whole point.",
     "diversityWindowDays": 7,
     "differentiatingVersionTags": [
       "cover",

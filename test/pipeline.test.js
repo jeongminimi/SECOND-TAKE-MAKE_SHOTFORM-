@@ -195,12 +195,13 @@ test('selection: scores, deterministic tie-break, 7-day diversity, dry-run is no
   const { db, cfg, ffmpeg } = await makeEnv();
   const ev = evaluateDate(db, cfg, '2026-11-15');
   const top = ev.eligible.slice(0, 4).map((e) => [e.candidate.candidate_key, e.score.total]);
-  // four candidates tie at 100 → newest official publish date wins (P002, 2026-11-10)
-  assert.deepEqual(top.map((x) => x[1]), [100, 100, 100, 100]);
+  // v2.0: covers reach 100, rearranged live versions 85. The two covers tie, so the newest official
+  // publish date wins (P002, 2026-11-10).
+  assert.deepEqual(top.map((x) => x[1]), [100, 100, 85, 85]);
   assert.equal(top[0][0], 'P002-haneul-starlight-acoustic-cover');
   assert.equal(ev.format, 'original_graphic');
   const plain = ev.eligible.find((e) => e.candidate.candidate_key === 'P007-lumina-starlight-stage');
-  assert.equal(plain.score.items.find((i) => i.key === 'versionDifference').points, 0);
+  assert.equal(plain.score.items.find((i) => i.key === 'versionDifference').points, 0, 'a straight live rendition earns nothing for version difference');
 
   if (!ffmpeg) return t.skip('FFmpeg not available');
   await runDay(db, cfg, '2026-11-15', { now: NOW });
@@ -208,7 +209,9 @@ test('selection: scores, deterministic tie-break, 7-day diversity, dry-run is no
   const snap = JSON.parse(next.selection.evaluation_snapshot);
   const haneul = snap.find((s) => s.candidate_key === 'P002-haneul-starlight-acoustic-cover');
   assert.equal(haneul.score.items.find((i) => i.key === 'recentDiversity').points, 0);
-  assert.equal(db.prepare('SELECT pc.candidate_key k FROM daily_selections ds JOIN performance_candidates pc ON pc.id = ds.candidate_id WHERE operating_date = ?').get('2026-11-16').k, 'P003-orbit-bluehour-acoustic');
+  // Haneul is penalised for being used the day before, so another performer wins. Under v2.0 that is
+  // the other cover (P005), not an acoustic rearrangement — a cover outranks a rearrangement now.
+  assert.equal(db.prepare('SELECT pc.candidate_key k FROM daily_selections ds JOIN performance_candidates pc ON pc.id = ds.candidate_id WHERE operating_date = ?').get('2026-11-16').k, 'P005-sora-papermoon-band-cover');
   // dry-run job exists for P002 but P002 is still eligible (dry-run ≠ published)
   assert.equal(haneul.eligible, true);
 });

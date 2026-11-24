@@ -18,7 +18,8 @@ test('6. local UI API: run a date, read candidate → score → rights → previ
     assert.equal(day.selection.status, 'selected');
     assert.equal(day.snapshot.length, 7);
     assert.equal(day.reel.output_format, 'licensed_clip');
-    assert.ok(day.selection.score_breakdown.items.length === 4);
+    // v2.0 scores three things: version difference, English info, recent diversity.
+    assert.deepEqual(day.selection.score_breakdown.items.map((i) => i.key), ['versionDifference', 'englishInfo', 'recentDiversity']);
     assert.match(day.reel.caption, /^LUMINA – Starlight Avenue \(Live Band Version\)/);
     assert.equal(day.jobs[0].status, 'simulated');
     const video = await fetch(base + day.reel.video_url);

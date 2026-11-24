@@ -1,5 +1,4 @@
 'use strict';
-const { localDateOf, daysBetween } = require('../util/time');
 const T = require('../util/terms');
 
 /**
@@ -31,18 +30,50 @@ function versionTags(c) {
   return [...new Set(tags)];
 }
 
+/**
+ * How far this performance is from the original recording — the whole point of the account, so it
+ * carries half the score. Three steps rather than a yes/no, because a cover of someone else's song and
+ * a band rearrangement of your own are not the same find.
+ *
+ * A performance with no `version_evidence` never reaches scoring (it is excluded outright), so the
+ * check here is a belt, not the braces.
+ */
+function versionTier(c, cfg) {
+  const { versionTiers, differentiatingVersionTags } = cfg.selection;
+  if (!c.version_evidence) return { tier: 'live', points: 0, tags: [] };
+  if (c.performance_type === 'cover') {
+    return { tier: 'cover', points: versionTiers.cover, tags: versionTags(c).filter((t) => differentiatingVersionTags.includes(t)) };
+  }
+  const arranged = (c.arrangement_tags ?? []).filter((t) => t !== 'cover' && differentiatingVersionTags.includes(t));
+  if (arranged.length) return { tier: 'arrangement', points: versionTiers.arrangement, tags: arranged };
+  return { tier: 'live', points: versionTiers.live, tags: [] };
+}
+
+const TIER_REASON = {
+  cover: (v, c) => [
+    `Cover of another artist's song (${v.tags.join(', ')}): ${c.version_evidence}`,
+    `다른 아티스트의 곡을 커버한 무대입니다${v.tags.length ? ` (${v.tags.map((t) => T.ko('tag', t)).join(', ')})` : ''}. 이 계정이 가장 찾는 형태입니다.`,
+  ],
+  arrangement: (v, c) => [
+    `Rearranged live version (${v.tags.join(', ')}): ${c.version_evidence}`,
+    `원곡과 편곡이 다른 라이브입니다 (${v.tags.map((t) => T.ko('tag', t)).join(', ')}). 커버만큼은 아니지만 원곡과 다르게 들립니다.`,
+  ],
+  live: () => [
+    'Straight live rendition — no cover and no arrangement difference',
+    '원곡과 같은 구성의 단순 라이브입니다. 커버나 편곡이 다른 무대가 이 계정의 취지에 더 맞습니다.',
+  ],
+};
+
 function score(c, ctx) {
-  const { weights, timelinessWindowDays, diversityWindowDays, differentiatingVersionTags } = ctx.cfg.selection;
+  const { weights, diversityWindowDays } = ctx.cfg.selection;
   const items = [];
 
-  const diffTags = versionTags(c).filter((t) => differentiatingVersionTags.includes(t));
-  const vOk = diffTags.length > 0 && Boolean(c.version_evidence);
+  const v = versionTier(c, ctx.cfg);
+  const [vReason, vReasonKo] = TIER_REASON[v.tier](v, c);
   items.push({
-    key: 'versionDifference', points: vOk ? weights.versionDifference : 0, max: weights.versionDifference,
-    reason: vOk ? `Version difference confirmed (${diffTags.join(', ')}): ${c.version_evidence}` : 'No cover/arrangement difference confirmed by the source',
-    reason_ko: vOk
-      ? `원곡과 다른 점이 확인됨 (${diffTags.map((t) => T.ko('tag', t)).join(', ')}): ${c.version_evidence}`
-      : '원곡과 어떻게 다른지가 출처로 확인되지 않았습니다. 편곡 태그와 "버전 근거"를 채우면 이 점수를 받습니다.',
+    key: 'versionDifference', tier: v.tier,
+    points: Math.min(v.points, weights.versionDifference), max: weights.versionDifference,
+    reason: vReason, reason_ko: vReasonKo,
   });
 
   const eOk = Boolean(c.performer_en && c.title_en && c.name_evidence);
@@ -54,22 +85,9 @@ function score(c, ctx) {
       : '공식 영문 공연자명·곡명 또는 그 근거가 없습니다. 3·4단계에서 채우면 이 점수를 받습니다.',
   });
 
-  const pubLocal = localDateOf(c.published_at, ctx.cfg.timezone);
-  const age = daysBetween(pubLocal, ctx.operatingDate);
-  let tOk = age >= 0 && age <= timelinessWindowDays;
-  let tReason = tOk ? `Officially released ${age} day(s) before (${pubLocal}, window ${timelinessWindowDays}d)` : `Released ${age} days ago (outside ${timelinessWindowDays}d window)`;
-  let tReasonKo = tOk
-    ? `공식 공개 ${age}일 뒤입니다 (${pubLocal}, 기준 ${timelinessWindowDays}일 이내)`
-    : `공식 공개로부터 ${age}일 지났습니다 (${timelinessWindowDays}일 기준 밖). 지금 소개할 공식적인 이유가 있다면 4단계의 "지금 소개할 이유"와 근거를 넣으면 이 점수를 받습니다.`;
-  if (!tOk && c.occasion_date && c.occasion_evidence) {
-    const oAge = daysBetween(c.occasion_date, ctx.operatingDate);
-    if (oAge >= 0 && oAge <= timelinessWindowDays) {
-      tOk = true;
-      tReason = `Official occasion ${c.occasion_date}: ${c.occasion_note}`;
-      tReasonKo = `공식적으로 확인된 계기 ${c.occasion_date}: ${c.occasion_note}`;
-    }
-  }
-  items.push({ key: 'timeliness', points: tOk ? weights.timeliness : 0, max: weights.timeliness, reason: tReason, reason_ko: tReasonKo });
+  // v2.0 removed the "timeliness" item: a song worth hearing again is usually an old video, so paying
+  // for recency pushed the best-fitting candidates down. occasion_note / occasion_date / occasion_evidence
+  // are still stored and still usable as caption material — they just no longer earn points.
 
   const recent = ctx.recentSelections.filter((s) => s.performer_en && c.performer_en && s.performer_en.toLowerCase() === c.performer_en.toLowerCase());
   const dOk = recent.length === 0;
@@ -92,4 +110,4 @@ function compareRanked(a, b) {
   return a.candidate.candidate_key < b.candidate.candidate_key ? -1 : a.candidate.candidate_key > b.candidate.candidate_key ? 1 : 0;
 }
 
-module.exports = { exclusions, score, compareRanked, versionTags };
+module.exports = { exclusions, score, compareRanked, versionTags, versionTier };
