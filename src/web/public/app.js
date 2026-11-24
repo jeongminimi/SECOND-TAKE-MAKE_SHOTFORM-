@@ -90,6 +90,13 @@ async function run(date, reselect = false) {
   }
 }
 
+/** True when the clip this day was built from is the operator's own file with no rights behind it. */
+function personalClip(d) {
+  const picked = (d.snapshot ?? []).find((x) => x.candidate_id === d.selection?.candidate_id);
+  const key = picked?.clip?.usable_asset_key;
+  return Boolean(key && picked.clip.assets.find((a) => a.asset_key === key)?.personalUseOnly);
+}
+
 function flowSteps(d) {
   const s = d.selection;
   const job = d.jobs?.[0];
@@ -101,7 +108,9 @@ function flowSteps(d) {
   return [
     ['후보 확인', 'ok', `${d.snapshot.length}건 중 ${elig}건 적격`],
     ['자동 선곡', 'ok', `${d.candidate.performer_en} · ${s.score}점`],
-    ['권리 판정', d.reel?.output_format === 'licensed_clip' ? 'ok' : 'warn', ko('format', d.reel?.output_format) || '-'],
+    personalClip(d)
+      ? ['권리 판정', 'bad', '권리 미확인 · 개인 확인용']
+      : ['권리 판정', d.reel?.output_format === 'licensed_clip' ? 'ok' : 'warn', ko('format', d.reel?.output_format) || '-'],
     ['영어 문구', 'ok', '정해진 틀로 생성'],
     ['세로 영상', d.reel?.render_status === 'done' ? 'ok' : 'bad', ko('renderStatus', d.reel?.render_status) || '-'],
     ['예약', job ? (job.status === 'simulated' ? 'ok' : 'bad') : 'skip', job ? ko('jobStatus', job.status) : '-'],
@@ -144,8 +153,9 @@ function rightsCard(d) {
     return head + '<p class="muted small">이 후보에는 등록된 클립 파일이 없습니다. 공식 링크를 찾은 것만으로는 파일을 확보했거나 이용 허락을 받은 것으로 보지 않습니다.</p>';
   }
   return head + assets.map((a) => `<details class="asset" ${a.eligible ? '' : 'open'}>
-    <summary>${a.eligible ? '<span class="badge ok">권리 확보</span>' : '<span class="badge bad">권리 미비</span>'}
-      ${a.testOnly ? '<span class="badge warn">테스트 소재 · 실제 게시 불가</span>' : ''}
+    <summary>${a.personalUseOnly ? '<span class="badge bad">권리 미확인 · 개인 확인용</span>'
+      : a.eligible ? '<span class="badge ok">권리 확보</span>' : '<span class="badge bad">권리 미비</span>'}
+      ${a.personalUseOnly || !a.testOnly ? '' : '<span class="badge warn">테스트 소재 · 실제 게시 불가</span>'}
       <span class="k">${esc(a.asset_key)}</span></summary>
     <ul class="checks">${a.checks.map((c) => `<li class="${c.testOnly ? 'test' : c.ok ? '' : 'no'}">${esc(c.label_ko ?? c.label)}</li>`).join('')}</ul></details>`).join('');
 }

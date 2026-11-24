@@ -15,11 +15,12 @@ const T = require('../util/terms');
 const REEL_SQL = `
   SELECT r.*, ds.operating_date, ds.score, ds.reason, ds.reason_ko, ds.revision,
          pc.performer_en, pc.performer_ko, pc.program_name, pc.candidate_key,
-         t.title_en AS song_en, t.title_ko AS song_ko
+         t.title_en AS song_en, t.title_ko AS song_ko, ca.personal_use_only
     FROM reels r
     JOIN daily_selections ds ON ds.id = r.selection_id
     LEFT JOIN performance_candidates pc ON pc.id = ds.candidate_id
-    LEFT JOIN tracks t ON t.id = pc.track_id`;
+    LEFT JOIN tracks t ON t.id = pc.track_id
+    LEFT JOIN clip_assets ca ON ca.id = r.clip_asset_id`;
 
 function pickReel(db, { date, reelId }) {
   if (reelId) return db.prepare(`${REEL_SQL} WHERE r.id = ?`).get(Number(reelId));
@@ -31,7 +32,9 @@ function note(r, job, plan) {
   const checks = (plan.checks ?? []).map((c) => `  ${c.ok ? '[확인]' : '[문제]'} ${c.label_ko ?? c.label}`).join('\n');
   const live = (plan.live_readiness ?? []).map((n) => `  - ${n.ko ?? n.en ?? n}`).join('\n');
   const rev = T.revision(r.revision);
-  return `SECOND TAKE — 내보낸 릴스 한 편
+  // A personal-use render has no rights behind it, so the warning goes first — before anything else is read.
+  const warn = r.personal_use_only ? '⚠ 이 영상은 권리를 확인하지 않은 개인 확인용입니다. 공개 게시하지 마세요.\n\n' : '';
+  return `${warn}SECOND TAKE — 내보낸 릴스 한 편
 ${'='.repeat(46)}
 
 ■ 무엇인가요

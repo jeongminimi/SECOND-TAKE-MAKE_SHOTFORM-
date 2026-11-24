@@ -76,7 +76,7 @@ function scheduleDryRun(db, cfg, { reel, selection, clipAsset, scheduledAt, now 
   const expectedKo = (failed.length
     ? `막힘: ${failed.map((f) => f.label_ko).join(' / ')}`
     : liveBlocked
-      ? '예행 연습은 통과했지만, 실제 발행이었다면 막혔을 것입니다 (테스트 소재·가상 권한).'
+      ? '예행 연습은 통과했지만, 실제 발행이었다면 막혔을 것입니다 (테스트 소재·가상 권한·개인 확인용).'
       : '예행 연습 통과 — 실제 발행이었다면 이 릴스를 예약했을 것입니다.') + (isPast ? ' 예약 시각은 이미 지났습니다.' : '');
   const plan = {
     platform, mode: 'dry_run', operating_date: selection.operating_date, scheduled_at_utc: scheduledAt,

@@ -253,8 +253,9 @@ function previewHtml() {
     ${p.eligible ? '' : `<h4 class="small muted">아직 뽑히지 않는 이유</h4>
       <ul class="checks">${p.exclusions.map((x) => `<li class="no">${esc(x.text_ko ?? x.text)}</li>`).join('')}</ul>`}
     ${p.clip.assets.length ? `<h4 class="small muted" style="margin-top:14px">클립 권리 점검</h4>${p.clip.assets.map((a) => `<details class="asset" ${a.eligible ? '' : 'open'}>
-      <summary>${a.eligible ? '<span class="badge ok">권리 확보</span>' : '<span class="badge bad">권리 미비</span>'}
-        ${a.testOnly ? '<span class="badge warn">테스트 소재 · 실제 게시 불가</span>' : ''}<span class="k">${esc(a.asset_key)}</span></summary>
+      <summary>${a.personalUseOnly ? '<span class="badge bad">권리 미확인 · 개인 확인용</span>'
+        : a.eligible ? '<span class="badge ok">권리 확보</span>' : '<span class="badge bad">권리 미비</span>'}
+        ${a.personalUseOnly || !a.testOnly ? '' : '<span class="badge warn">테스트 소재 · 실제 게시 불가</span>'}<span class="k">${esc(a.asset_key)}</span></summary>
       <ul class="checks">${a.checks.map((c) => `<li class="${c.testOnly ? 'test' : c.ok ? '' : 'no'}">${esc(c.label_ko ?? c.label)}</li>`).join('')}</ul></details>`).join('')}` : ''}
     ${p.score ? `<details style="margin-top:10px"><summary class="small muted">점수를 어떻게 매겼는지 보기</summary>
       <ul class="checks">${p.score.items.map((i) => `<li class="${i.points === i.max ? '' : 'no'}">${esc(ko('score', i.key))} ${i.points}/${i.max} — ${esc(i.reason_ko ?? i.reason)}</li>`).join('')}</ul></details>` : ''}`;
@@ -266,10 +267,21 @@ function stepClip(L) {
   const sel = mstate.edit.clipCandidateId ?? withClips[0].id;
   const cand = withClips.find((c) => String(c.id) === String(sel)) ?? withClips[0];
   const nameOf = (c) => `${c.performer_en ?? '공연자 미입력'} – ${c.title_en ?? c.title_ko ?? '곡 미연결'}`;
+  const personalOn = Boolean(mstate.edit.clipAsset?.personal_use_only);
   const picker = `<div class="fld"><label for="clipCand">어느 후보의 클립인가요</label>
     <select id="clipCand">${withClips.map((c) => `<option value="${c.id}" ${c.id === cand.id ? 'selected' : ''}>${esc(nameOf(c))}</option>`).join('')}</select></div>`;
 
   const assets = cand.clip_assets.map((a) => {
+    // A personal-use clip has no rights to show, so the rights area is replaced by what it means instead.
+    if (a.personal_use_only) {
+      return `<div class="asset"><h4>사용 구간 ${TERMS.range(a.source_start_sec, a.source_end_sec)}
+          <span class="badge bad">권리 미확인 · 개인 확인용</span></h4>
+        ${idTag(a.asset_key)}
+        <p class="small muted">영상·음악·실연 권리를 입력하지 않는 클립입니다. 예행 연습에서는 영상이 만들어지지만,
+          실제 발행은 영구히 막힙니다. 공개 게시하면 안 됩니다.</p>
+        <details class="small muted" style="margin-top:8px"><summary>파일 정보</summary>
+          <p class="k">${esc(a.file_ref)} · 파일 내 시작 ${TERMS.mmss(a.file_offset_sec)}</p></details></div>`;
+    }
     const perms = (L.rightsCategories ?? []).map((cat) => {
       const p = a.permissions.find((x) => x.rights_category === cat);
       const ok = p && p.status === 'granted' && p.allows_edit && p.allows_repost && p.evidence_ref;
@@ -288,7 +300,7 @@ function stepClip(L) {
 
   return formShell('5. 클립 · 이용 허락',
     '적법하게 확보한 영상 파일과, 그 파일에 대한 <b>영상·음악·실연</b> 세 가지 이용 허락을 등록합니다. 세 가지가 모두 충족될 때만 공연 클립형 릴스가 만들어집니다.',
-    picker + `<form class="entry" data-kind="clip-asset">
+    picker + `<form class="entry" data-kind="clip-asset" ${personalOn ? 'data-personal' : ''}>
       <input type="hidden" name="candidate_id" value="${cand.id}">
       <div class="fld" data-field="file_ref"><label>클립 파일</label>
         <span class="fhelp">공식 링크는 파일이 아닙니다. 적법하게 확보한 동영상 파일을 올리세요. storage/clips 에 저장됩니다.</span>
@@ -299,10 +311,14 @@ function stepClip(L) {
         { name: 'source_end_sec', label: '↳ 끝 (초)', type: 'number', help: '길이는 30초를 넘을 수 없습니다.' },
         { name: 'file_offset_sec', label: '파일 안에서의 시작 위치 (초)', type: 'number', help: '올린 파일이 원본 전체가 아니라 잘라낸 것이라면, 그 시작점이 원본의 몇 초인지에 맞춰 적습니다.' },
         { name: 'is_test_asset', label: '테스트 소재 (실제 발행에서 거부됨)', type: 'checkbox' },
+        { name: 'personal_use_only', label: '개인 확인용 (권리 입력 건너뛰기)', type: 'checkbox',
+          help: '내 PC에 있는 영상을 잘라서 어떻게 보이는지 확인만 합니다. 권리 3종을 입력하지 않아도 영상이 만들어집니다. '
+            + '대신 이 영상은 실제 발행이 영구히 막히고, 공개 게시하면 안 됩니다.' },
         { name: 'notes', label: '메모 (선택)' }].map((f) => field(f, mstate.edit.clipAsset)).join('')}
+      <div class="upstate" id="personalHint" ${personalOn ? '' : 'hidden'}>권리 3종은 입력하지 않아도 됩니다. 아래 권리 영역을 흐리게 표시했습니다.</div>
       ${advancedBox('clip-asset', mstate.edit.clipAsset)}
       <div class="actions"><button class="btn" type="submit">클립 저장</button></div></form>`)
-    + `<section class="card"><h3>${esc(cand.candidate_key)} 의 클립</h3>${assets}</section>`
+    + `<section class="card${personalOn ? ' dimmed' : ''}" id="clipRights"><h3>${esc(cand.candidate_key)} 의 클립</h3>${assets}</section>`
     + `<section class="card" id="previewCard">${previewHtml()}</section>`;
 }
 
@@ -381,7 +397,8 @@ async function submitEntry(form) {
   } else if (kind === 'clip-asset') {
     payload = { candidate_id: Number(form.elements.candidate_id.value), file_ref: form.elements.file_ref.value || null,
       ...readForm(form, [{ name: 'source_start_sec', type: 'number' }, { name: 'source_end_sec', type: 'number' },
-        { name: 'file_offset_sec', type: 'number' }, { name: 'is_test_asset', type: 'checkbox' }, { name: 'notes' }, { name: 'asset_key' }]) };
+        { name: 'file_offset_sec', type: 'number' }, { name: 'is_test_asset', type: 'checkbox' },
+        { name: 'personal_use_only', type: 'checkbox' }, { name: 'notes' }, { name: 'asset_key' }]) };
   } else {
     payload = readForm(form, allFields(kind));
     if (mstate.edit[kind]?.id) payload.id = mstate.edit[kind].id;
@@ -522,6 +539,13 @@ document.addEventListener('click', async (e) => {
 
 document.addEventListener('change', async (e) => {
   if (e.target.id === 'clipCand') { mstate.edit.clipCandidateId = Number(e.target.value); await renderManage(); return; }
+  // Ticking "개인 확인용" says the rights below will not be filled in, so they stop looking like a to-do.
+  if (e.target.name === 'personal_use_only') {
+    $('#clipRights')?.classList.toggle('dimmed', e.target.checked);
+    const hint = $('#personalHint');
+    if (hint) hint.hidden = !e.target.checked;
+    return;
+  }
   if (e.target.id === 'clipFile' && e.target.files[0]) {
     const state = $('#clipUpState');
     state.textContent = '올리는 중…';

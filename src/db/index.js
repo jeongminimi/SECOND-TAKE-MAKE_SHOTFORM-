@@ -29,6 +29,7 @@ const COLUMN_MIGRATIONS = [
   ['daily_selections', 'skip_reason_ko', 'TEXT'],
   ['reels', 'format_reason_ko', 'TEXT'],
   ['publish_jobs', 'expected_status_ko', 'TEXT'],
+  ['clip_assets', 'personal_use_only', 'INTEGER NOT NULL DEFAULT 0'],
 ];
 function migrate(db) {
   for (const [table, col, ddl] of COLUMN_MIGRATIONS) {

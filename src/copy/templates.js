@@ -103,7 +103,10 @@ function buildCopy(c, { format, clipAsset = null, account }) {
   lines.push('');
   lines.push(`Full official video: ${link}`);
   lines.push('');
-  if (format === 'licensed_clip' && clipAsset) {
+  if (format === 'licensed_clip' && clipAsset?.personal_use_only) {
+    // No permission was asked for, so the caption must not claim one.
+    lines.push('Personal test render — not licensed for distribution.');
+  } else if (format === 'licensed_clip' && clipAsset) {
     const holders = clipAsset.permissions.map((p) => `${p.rights_category}: ${p.rights_holder ?? 'n/a'}`).join('; ');
     lines.push(`Clip used with permission (${holders}).`);
   } else {

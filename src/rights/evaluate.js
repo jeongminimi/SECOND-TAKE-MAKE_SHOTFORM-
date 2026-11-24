@@ -35,6 +35,19 @@ function evaluateClip(asset, ctx) {
     checks.push({ ok: true, label: 'Test asset (allowed in dry-run only)', label_ko: '테스트용 소재입니다 (예행 연습에서만 허용)', testOnly: true });
   }
 
+  // A personal-use clip is the operator's own file, cut only to see how a template looks. No rights were
+  // asked for, so none are checked — and for exactly that reason it can never reach the live path.
+  const personal = Boolean(asset.personal_use_only);
+  if (personal && mode === 'live') {
+    fail('Personal-use clip — never valid for live publishing', '개인 확인용 클립입니다. 실제 발행에는 쓸 수 없습니다.');
+  } else if (personal) {
+    checks.push({
+      ok: true, testOnly: true,
+      label: 'Personal use only — rights NOT verified',
+      label_ko: '개인 확인용 — 권리를 확인하지 않았습니다. 공개 게시하면 안 됩니다.',
+    });
+  }
+
   const dur = asset.source_end_sec - asset.source_start_sec;
   if (dur > cfg.render.maxClipDurationSec) {
     fail(`Intended segment is ${dur}s, longer than the ${cfg.render.maxClipDurationSec}s reel limit`,
@@ -47,7 +60,9 @@ function evaluateClip(asset, ctx) {
   const territoriesNeeded = cfg.publish.geoRestrictionSupported ? cfg.publish.targetRegions : ['WORLDWIDE'];
   const platform = cfg.rights.requiredPlatform;
 
-  for (const cat of cfg.rights.requiredCategories) {
+  // Skipped entirely for a personal-use clip: the operator was told not to fill these in, so listing
+  // them as missing would be noise. The verdict above already decides what the clip may be used for.
+  for (const cat of personal ? [] : cfg.rights.requiredCategories) {
     const K = T.ko('category', cat); // 영상 권리 / 음악 권리 / 실연 권리
     const p = asset.permissions.find((x) => x.rights_category === cat);
     if (!p) { fail(`[${cat}] permission missing`, `${K} 정보가 아직 없습니다. 5단계에서 ${K}를 입력하면 해결됩니다.`); continue; }
@@ -102,8 +117,8 @@ function evaluateClip(asset, ctx) {
     }
   }
 
-  const testOnly = Boolean(asset.is_test_asset || asset.permissions.some((p) => p.is_test_permission));
-  return { assetId: asset.id, assetKey: asset.asset_key, eligible: reasons.length === 0, reasons, reasons_ko: reasonsKo, checks, testOnly };
+  const testOnly = Boolean(asset.is_test_asset || personal || asset.permissions.some((p) => p.is_test_permission));
+  return { assetId: asset.id, assetKey: asset.asset_key, eligible: reasons.length === 0, reasons, reasons_ko: reasonsKo, checks, testOnly, personalUseOnly: personal };
 }
 
 /** Evaluates every clip of a candidate and returns the first usable one (by asset id) plus all results. */

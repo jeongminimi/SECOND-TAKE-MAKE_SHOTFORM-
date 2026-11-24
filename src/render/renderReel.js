@@ -58,7 +58,10 @@ async function renderReel({ cfg, reel, copy, clipAsset, operatingDate, templateI
     args.push('-ss', String(clipAsset.file_offset_sec), '-t', String(dur), '-i', src);
     args.push('-f', 'lavfi', '-i', `color=c=${BG}:s=${W}x${H}:r=${FPS}:d=${dur}`);
     if (!info.audio) args.push('-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo');
-    const credit = `Clip used with permission · ${clipAsset.permissions.map((p) => p.rights_holder).filter(Boolean).join(' / ')}`;
+    // The credit line is the one thing a viewer of the file itself sees, so a personal-use render says so.
+    const credit = clipAsset.personal_use_only
+      ? '개인 테스트용 · 권리 미확인 · 배포 불가'
+      : `Clip used with permission · ${clipAsset.permissions.map((p) => p.rights_holder).filter(Boolean).join(' / ')}`;
     const data = { ...g, credit: credit.length > 90 ? credit.slice(0, 87) + '...' : credit, clipCues: clipCues(g.cues, clipAsset) };
     layout = drawTemplate(fb, tpl, data, { accent, duration: dur });
     filter = `[0:v]scale=${W}:-2:force_original_aspect_ratio=decrease,setsar=1,fps=${FPS}[clip];\n` +

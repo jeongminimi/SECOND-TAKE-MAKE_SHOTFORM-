@@ -38,9 +38,13 @@ function evaluateDate(db, cfg, operatingDate, { mode = 'dry_run' } = {}) {
     pick = withClip[0];
     format = 'licensed_clip';
     const r = pick.clip.usable.result;
-    formatReason = `Usable clip ${r.assetKey}: all required rights cover edit, Instagram, worldwide, schedule and segment` + (r.testOnly ? ' (TEST asset — dry-run only)' : '');
-    formatReasonKo = `권리 3종이 모두 확보된 클립이 있어 공연 클립형으로 만듭니다 (편집·Instagram 게시·전 세계·기간·구간 모두 충족).`
-      + (r.testOnly ? ' 다만 테스트 소재라서 실제 발행은 막힙니다.' : '');
+    formatReason = r.personalUseOnly
+      ? `Personal-use clip ${r.assetKey}: rights NOT verified — dry-run render only, never for live publishing`
+      : `Usable clip ${r.assetKey}: all required rights cover edit, Instagram, worldwide, schedule and segment` + (r.testOnly ? ' (TEST asset — dry-run only)' : '');
+    formatReasonKo = r.personalUseOnly
+      ? '개인 확인용 클립이라 권리를 확인하지 않고 공연 클립형으로 만듭니다. 실제 발행은 영구히 막히며, 공개 게시하면 안 됩니다.'
+      : `권리 3종이 모두 확보된 클립이 있어 공연 클립형으로 만듭니다 (편집·Instagram 게시·전 세계·기간·구간 모두 충족).`
+        + (r.testOnly ? ' 다만 테스트 소재라서 실제 발행은 막힙니다.' : '');
   } else if (eligible.length) {
     pick = eligible[0];
     format = 'original_graphic';
@@ -72,7 +76,7 @@ function evaluateDate(db, cfg, operatingDate, { mode = 'dry_run' } = {}) {
     score: e.score ?? null,
     clip: e.clip ? {
       usable_asset_key: e.clip.usable?.result.assetKey ?? null,
-      assets: e.clip.results.map((x) => ({ asset_key: x.result.assetKey, eligible: x.result.eligible, testOnly: x.result.testOnly, reasons: x.result.reasons, reasons_ko: x.result.reasons_ko, checks: x.result.checks })),
+      assets: e.clip.results.map((x) => ({ asset_key: x.result.assetKey, eligible: x.result.eligible, testOnly: x.result.testOnly, personalUseOnly: x.result.personalUseOnly, reasons: x.result.reasons, reasons_ko: x.result.reasons_ko, checks: x.result.checks })),
     } : null,
     rank: e.eligible ? eligible.indexOf(e) + 1 : null,
   }));
@@ -99,13 +103,17 @@ function previewCandidate(db, cfg, candidateId, operatingDate) {
   const ex = exclusions(c, ctx);
   const clip = bestClip(loadClipAssets(db, c.id), { cfg, publishAtUtc, mode: 'dry_run' });
   const format = clip.usable ? 'licensed_clip' : 'original_graphic';
-  const formatReason = clip.usable
+  const formatReason = clip.usable?.result.personalUseOnly
+    ? `Personal-use clip ${clip.usable.result.assetKey}: rights NOT verified — dry-run render only, never for live publishing`
+    : clip.usable
     ? `Usable clip ${clip.usable.result.assetKey}: every required right covers edit, Instagram, worldwide, schedule and segment`
       + (clip.usable.result.testOnly ? ' (TEST asset — dry-run only)' : '')
     : clip.results.length
       ? `Clip rejected (${clip.results.map((x) => `${x.result.assetKey}: ${x.result.reasons.join(' | ')}`).join('; ')}) → original graphic`
       : 'No clip file registered for this candidate → original graphic';
-  const formatReasonKo = clip.usable
+  const formatReasonKo = clip.usable?.result.personalUseOnly
+    ? '개인 확인용 클립이라 권리를 확인하지 않고 공연 클립형으로 만들어집니다. 실제 발행은 영구히 막히며, 공개 게시하면 안 됩니다.'
+    : clip.usable
     ? '권리 3종이 모두 확보되어 공연 클립형으로 만들어집니다.' + (clip.usable.result.testOnly ? ' 다만 테스트 소재라서 실제 발행은 막힙니다.' : '')
     : clip.results.length
       ? `클립을 쓸 수 없어 자체 그래픽형으로 만들어집니다. ${clip.results.map((x) => x.result.reasons_ko.join(' / ')).join(' / ')}`
@@ -119,7 +127,7 @@ function previewCandidate(db, cfg, candidateId, operatingDate) {
     format, format_reason: formatReason, format_reason_ko: formatReasonKo,
     clip: {
       usable_asset_key: clip.usable?.result.assetKey ?? null,
-      assets: clip.results.map((x) => ({ asset_key: x.result.assetKey, eligible: x.result.eligible, testOnly: x.result.testOnly, reasons: x.result.reasons, reasons_ko: x.result.reasons_ko, checks: x.result.checks })),
+      assets: clip.results.map((x) => ({ asset_key: x.result.assetKey, eligible: x.result.eligible, testOnly: x.result.testOnly, personalUseOnly: x.result.personalUseOnly, reasons: x.result.reasons, reasons_ko: x.result.reasons_ko, checks: x.result.checks })),
     },
   };
 }

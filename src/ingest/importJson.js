@@ -88,11 +88,11 @@ function importData(db, data) {
     }
 
     const upAsset = db.prepare(`
-      INSERT INTO clip_assets (asset_key, candidate_id, file_ref, source_start_sec, source_end_sec, file_offset_sec, is_test_asset, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO clip_assets (asset_key, candidate_id, file_ref, source_start_sec, source_end_sec, file_offset_sec, is_test_asset, personal_use_only, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (asset_key) DO UPDATE SET candidate_id = excluded.candidate_id, file_ref = excluded.file_ref,
         source_start_sec = excluded.source_start_sec, source_end_sec = excluded.source_end_sec, file_offset_sec = excluded.file_offset_sec,
-        is_test_asset = excluded.is_test_asset, notes = excluded.notes
+        is_test_asset = excluded.is_test_asset, personal_use_only = excluded.personal_use_only, notes = excluded.notes
       RETURNING id`);
     const upPerm = db.prepare(`
       INSERT INTO usage_permissions (clip_asset_id, rights_category, rights_holder, status, allows_edit, allows_repost, platforms,
@@ -107,7 +107,8 @@ function importData(db, data) {
       const candId = ids.candidates[a.candidate];
       if (!candId) throw new Error(`clip asset ${a.asset_key}: unknown candidate ${a.candidate}`);
       V.assertValid(V.validateClipAsset(a));
-      const assetId = upAsset.get(a.asset_key, candId, a.file_ref, a.source_start_sec, a.source_end_sec, a.file_offset_sec ?? 0, a.is_test_asset ?? 0, a.notes ?? null).id;
+      const assetId = upAsset.get(a.asset_key, candId, a.file_ref, a.source_start_sec, a.source_end_sec, a.file_offset_sec ?? 0,
+        a.is_test_asset ?? 0, a.personal_use_only ?? 0, a.notes ?? null).id;
       ids.assets[a.asset_key] = assetId;
       counts.clip_assets++;
       for (const p of a.permissions ?? []) {

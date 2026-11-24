@@ -74,6 +74,9 @@ CREATE TABLE IF NOT EXISTS clip_assets (
   source_end_sec     INTEGER NOT NULL,
   file_offset_sec    INTEGER NOT NULL DEFAULT 0,    -- where source_start_sec sits inside file_ref
   is_test_asset      INTEGER NOT NULL DEFAULT 0 CHECK (is_test_asset IN (0,1)),
+  -- Operator's own file, cut only to see how a template looks. Rights are NOT verified, so this
+  -- skips the rights categories below and can never pass the live path. Default off.
+  personal_use_only  INTEGER NOT NULL DEFAULT 0 CHECK (personal_use_only IN (0,1)),
   notes              TEXT,
   CHECK (source_end_sec > source_start_sec)
 );

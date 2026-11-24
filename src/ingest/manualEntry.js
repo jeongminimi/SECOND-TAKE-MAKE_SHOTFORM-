@@ -166,15 +166,16 @@ function saveClipAsset(db, cfg, d) {
       throw new Error(`clip asset ${d.asset_key}: unknown candidate ${d.candidate_id}`);
     }
     const vals = [d.asset_key, d.candidate_id, d.file_ref, shaped.source_start_sec, shaped.source_end_sec,
-      num(d.file_offset_sec) ?? 0, bool(d.is_test_asset), str(d.notes)];
+      num(d.file_offset_sec) ?? 0, bool(d.is_test_asset), bool(d.personal_use_only), str(d.notes)];
     const row = d.id
       ? db.prepare(`UPDATE clip_assets SET asset_key = ?, candidate_id = ?, file_ref = ?, source_start_sec = ?, source_end_sec = ?,
-                      file_offset_sec = ?, is_test_asset = ?, notes = ? WHERE id = ? RETURNING *`).get(...vals, d.id)
-      : db.prepare(`INSERT INTO clip_assets (asset_key, candidate_id, file_ref, source_start_sec, source_end_sec, file_offset_sec, is_test_asset, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                      file_offset_sec = ?, is_test_asset = ?, personal_use_only = ?, notes = ? WHERE id = ? RETURNING *`).get(...vals, d.id)
+      : db.prepare(`INSERT INTO clip_assets (asset_key, candidate_id, file_ref, source_start_sec, source_end_sec, file_offset_sec, is_test_asset, personal_use_only, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT (asset_key) DO UPDATE SET candidate_id = excluded.candidate_id, file_ref = excluded.file_ref,
                       source_start_sec = excluded.source_start_sec, source_end_sec = excluded.source_end_sec,
-                      file_offset_sec = excluded.file_offset_sec, is_test_asset = excluded.is_test_asset, notes = excluded.notes
+                      file_offset_sec = excluded.file_offset_sec, is_test_asset = excluded.is_test_asset,
+                      personal_use_only = excluded.personal_use_only, notes = excluded.notes
                     RETURNING *`).get(...vals);
     if (!row) throw new Error(`clip asset ${d.id} not found`);
     return saved(row, issues);
