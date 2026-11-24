@@ -22,6 +22,13 @@ function openDb(dbPath) {
 const COLUMN_MIGRATIONS = [
   ['performance_candidates', 'watch_cues', "TEXT NOT NULL DEFAULT '[]'"],
   ['reels', 'template_id', 'TEXT'],
+  ['source_videos', 'is_active', 'INTEGER NOT NULL DEFAULT 1'],
+  ['performance_candidates', 'is_active', 'INTEGER NOT NULL DEFAULT 1'],
+  // Every verdict is stored in both languages: English for tests and logs, Korean for the operator.
+  ['daily_selections', 'reason_ko', 'TEXT'],
+  ['daily_selections', 'skip_reason_ko', 'TEXT'],
+  ['reels', 'format_reason_ko', 'TEXT'],
+  ['publish_jobs', 'expected_status_ko', 'TEXT'],
 ];
 function migrate(db) {
   for (const [table, col, ddl] of COLUMN_MIGRATIONS) {

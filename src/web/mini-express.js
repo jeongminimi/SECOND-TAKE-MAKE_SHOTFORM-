@@ -54,7 +54,9 @@ function miniExpress() {
       const m = r.re.exec(req.path);
       if (!m) continue;
       req.params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
-      if (req.method === 'POST') {
+      // Only JSON is buffered here. An upload keeps its stream so the route can read the bytes itself,
+      // the same way express.json() leaves a non-JSON body alone.
+      if (['POST', 'PUT', 'PATCH'].includes(req.method) && /application\/json/i.test(req.headers['content-type'] ?? '')) {
         let body = '';
         for await (const chunk of req) body += chunk;
         try { req.body = body ? JSON.parse(body) : {}; } catch { req.body = {}; }
@@ -73,8 +75,9 @@ function miniExpress() {
     }
     res.statusCode = 404; res.end('Not found');
   }
-  app.get = (p, fn) => routes.push({ method: 'GET', ...compile(p), fn });
-  app.post = (p, fn) => routes.push({ method: 'POST', ...compile(p), fn });
+  for (const m of ['get', 'post', 'put', 'patch', 'delete']) {
+    app[m] = (p, fn) => routes.push({ method: m.toUpperCase(), ...compile(p), fn });
+  }
   app.use = (prefix, mw) => { if (typeof prefix === 'string' && mw && mw.__static) mounts.push({ prefix, dir: mw.__static }); };
   app.listen = (port, cb) => http.createServer(app).listen(port, cb);
   return app;

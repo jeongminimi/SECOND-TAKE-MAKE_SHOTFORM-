@@ -73,6 +73,7 @@
     "db": "storage/app.db",
     "output": "output",
     "testAssets": "storage/test-assets",
+    "clips": "storage/clips",
     "evidence": "storage/evidence"
   },
   "analysis": {

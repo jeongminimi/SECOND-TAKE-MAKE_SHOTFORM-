@@ -4,7 +4,7 @@ const { json } = require('../db');
 const CANDIDATE_SQL = `
   SELECT pc.*,
          sv.platform, sv.platform_video_id, sv.official_url, sv.title AS video_title, sv.description AS video_description,
-         sv.published_at,
+         sv.published_at, sv.is_active AS video_active,
          sc.id AS channel_id, sc.name AS channel_name, sc.is_active AS channel_active, sc.is_test AS channel_is_test,
          t.track_key, t.original_artist_en, t.original_artist_ko, t.title_en, t.title_ko, t.name_evidence
     FROM performance_candidates pc

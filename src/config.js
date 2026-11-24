@@ -25,6 +25,7 @@ function loadConfig(overrides = {}) {
     db: cfg.paths.db === ':memory:' ? ':memory:' : abs(cfg.paths.db),
     output: abs(cfg.paths.output),
     testAssets: abs(cfg.paths.testAssets),
+    clips: abs(cfg.paths.clips ?? 'storage/clips'),
     evidence: abs(cfg.paths.evidence),
   };
   return cfg;

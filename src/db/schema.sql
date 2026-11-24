@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS source_videos (
   title              TEXT    NOT NULL,
   description        TEXT,
   published_at       TEXT    NOT NULL,              -- UTC
+  is_active          INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),  -- deactivated: its candidates are never selected
   created_at         TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   UNIQUE (platform, platform_video_id)              -- dedupe on (platform, platform video id)
 );
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS performance_candidates (
   occasion_evidence     TEXT,
   watch_cues            TEXT    NOT NULL DEFAULT '[]', -- JSON [{at_sec, text_en, evidence}] — shown only when evidence is present
   judgement_notes       TEXT,                       -- operator / ingest notes on how this was verified
+  is_active             INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),  -- deactivated: kept for the record, never selected
   created_at            TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   CHECK (segment_start_sec IS NULL OR segment_end_sec IS NULL OR segment_end_sec > segment_start_sec)
 );
@@ -122,8 +124,10 @@ CREATE TABLE IF NOT EXISTS daily_selections (
   status              TEXT    NOT NULL CHECK (status IN ('selected','skipped')),
   score               INTEGER,
   score_breakdown     TEXT,                         -- JSON
-  reason              TEXT,                         -- human-readable selection reason
+  reason              TEXT,                         -- human-readable selection reason (English)
+  reason_ko           TEXT,                         -- same verdict, written for the operator
   skip_reason         TEXT,
+  skip_reason_ko      TEXT,
   rule_version        TEXT    NOT NULL,
   evaluation_snapshot TEXT,                         -- JSON: every candidate considered + why
   revision            INTEGER NOT NULL DEFAULT 1,
@@ -139,6 +143,7 @@ CREATE TABLE IF NOT EXISTS reels (
   output_format       TEXT    NOT NULL CHECK (output_format IN ('licensed_clip','original_graphic')),
   template_id         TEXT,                         -- templates/reels/<id>.json used for rendering
   format_reason       TEXT    NOT NULL,
+  format_reason_ko    TEXT,
   title_en            TEXT    NOT NULL,
   caption             TEXT    NOT NULL,
   official_link       TEXT    NOT NULL,             -- official URL (+ verified timestamp if any)
@@ -161,6 +166,7 @@ CREATE TABLE IF NOT EXISTS publish_jobs (
   scheduled_at          TEXT    NOT NULL,           -- UTC
   status                TEXT    NOT NULL CHECK (status IN ('simulated','blocked','queued','container_created','published','pending_confirmation','failed')),
   expected_status       TEXT,                       -- dry-run: what a live run would do
+  expected_status_ko    TEXT,                       -- same, written for the operator
   plan_json             TEXT,                       -- dry-run: file, caption, schedule actually checked
   external_container_id TEXT,                       -- never fabricated in dry_run
   external_media_id     TEXT,                       -- never fabricated in dry_run

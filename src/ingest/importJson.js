@@ -6,19 +6,16 @@
  */
 const fs = require('node:fs');
 const { tx } = require('../db');
+const V = require('./validate');
 
 function importFile(db, filePath) {
   return importData(db, JSON.parse(fs.readFileSync(filePath, 'utf8')));
 }
 
-/** Cues must carry evidence; a cue without a source is rejected at import, not silently dropped. */
+/** Same rules the web forms use, so a file import can never slip past a check a form enforces. */
 function validCues(c) {
-  const cues = c.watch_cues ?? [];
-  for (const q of cues) {
-    if (typeof q.at_sec !== 'number' || !q.text_en) throw new Error(`candidate ${c.candidate_key}: cue needs at_sec and text_en`);
-    if (!q.evidence) throw new Error(`candidate ${c.candidate_key}: cue at ${q.at_sec}s has no evidence`);
-  }
-  return cues;
+  V.assertValid(V.validateCandidate({ ...c, arrangement_tags: c.arrangement_tags ?? [] }));
+  return c.watch_cues ?? [];
 }
 
 function importData(db, data) {
@@ -32,6 +29,7 @@ function importData(db, data) {
       ON CONFLICT (platform, external_id) DO UPDATE SET name = excluded.name, is_active = excluded.is_active, is_test = excluded.is_test
       RETURNING id`);
     for (const c of data.channels ?? []) {
+      V.assertValid(V.validateChannel(c));
       ids.channels[c.key] = upChannel.get(c.platform, c.external_id, c.name, c.is_active ?? 1, c.is_test ?? 0).id;
       counts.channels++;
     }
@@ -43,6 +41,7 @@ function importData(db, data) {
         title_en = excluded.title_en, title_ko = excluded.title_ko, name_evidence = excluded.name_evidence
       RETURNING id`);
     for (const t of data.tracks ?? []) {
+      V.assertValid(V.validateTrack(t));
       ids.tracks[t.key] = upTrack.get(t.key, t.original_artist_en ?? null, t.original_artist_ko ?? null, t.title_en ?? null, t.title_ko ?? null, t.name_evidence ?? null).id;
       counts.tracks++;
     }
@@ -54,6 +53,7 @@ function importData(db, data) {
         title = excluded.title, description = excluded.description, published_at = excluded.published_at
       RETURNING id`);
     for (const v of data.videos ?? []) {
+      V.assertValid(V.validateVideo(v));
       const channelId = ids.channels[v.channel];
       if (!channelId) throw new Error(`video ${v.key}: unknown channel ${v.channel}`);
       ids.videos[v.key] = upVideo.get(channelId, v.platform, v.platform_video_id, v.official_url, v.title, v.description ?? null, v.published_at).id;
@@ -106,14 +106,12 @@ function importData(db, data) {
     for (const a of data.clip_assets ?? []) {
       const candId = ids.candidates[a.candidate];
       if (!candId) throw new Error(`clip asset ${a.asset_key}: unknown candidate ${a.candidate}`);
-      if (/^https?:/i.test(a.file_ref)) throw new Error(`clip asset ${a.asset_key}: file_ref must be a local file, not a URL — an official link is not a file`);
+      V.assertValid(V.validateClipAsset(a));
       const assetId = upAsset.get(a.asset_key, candId, a.file_ref, a.source_start_sec, a.source_end_sec, a.file_offset_sec ?? 0, a.is_test_asset ?? 0, a.notes ?? null).id;
       ids.assets[a.asset_key] = assetId;
       counts.clip_assets++;
       for (const p of a.permissions ?? []) {
-        if (p.evidence_ref && !/^evidence:\/\//.test(p.evidence_ref)) {
-          throw new Error(`permission ${a.asset_key}/${p.rights_category}: evidence_ref must be a pointer (evidence://...), not the document itself`);
-        }
+        V.assertValid(V.validatePermission(p, a.asset_key));
         upPerm.run(assetId, p.rights_category, p.rights_holder ?? null, p.status, p.allows_edit ?? 0, p.allows_repost ?? 0,
           JSON.stringify(p.platforms ?? []), JSON.stringify(p.territories ?? []), p.valid_from ?? null, p.valid_until ?? null,
           p.permitted_start_sec ?? null, p.permitted_end_sec ?? null, p.evidence_ref ?? null, p.is_test_permission ?? 0);

@@ -7,7 +7,9 @@ const { loadConfig, fromStoredPath } = require('../config');
 const { openDb, json } = require('../db');
 const { runDay } = require('../pipeline');
 const { loadCandidate, loadCandidates, loadClipAssets } = require('../selection/candidates');
-const { selectionPlan } = require('../selection/selectDaily');
+const { selectionPlan, previewCandidate } = require('../selection/selectDaily');
+const entry = require('../ingest/manualEntry');
+const V = require('../ingest/validate');
 const { todayIn, fmtTimestamp } = require('../util/time');
 const { SEED } = require('../cli');
 const { analyzeAssets, approveSuggestion, rejectSuggestion, suggestionsForCandidate } = require('../analysis/structure');
@@ -31,10 +33,12 @@ function createApp(cfg, db) {
 
   app.get('/api/overview', (req, res) => {
     const selections = db.prepare(`
-      SELECT ds.id, ds.operating_date, ds.status, ds.score, ds.revision, ds.skip_reason, pc.candidate_key, pc.performer_en, r.title_en,
-             r.output_format, r.render_status, r.poster_path, pj.status AS job_status
+      SELECT ds.id, ds.operating_date, ds.status, ds.score, ds.revision, ds.skip_reason, ds.skip_reason_ko,
+             pc.candidate_key, pc.performer_en, pc.performer_ko, t.title_en AS song_title_en, t.title_ko AS song_title_ko,
+             r.title_en, r.output_format, r.render_status, r.poster_path, pj.status AS job_status
         FROM daily_selections ds
         LEFT JOIN performance_candidates pc ON pc.id = ds.candidate_id
+        LEFT JOIN tracks t ON t.id = pc.track_id
         LEFT JOIN reels r ON r.selection_id = ds.id
         LEFT JOIN publish_jobs pj ON pj.reel_id = r.id AND pj.mode = 'dry_run'
        ORDER BY ds.operating_date DESC`).all().map((s) => ({ ...s, poster_url: mediaUrl(s.poster_path) }));
@@ -125,6 +129,76 @@ function createApp(cfg, db) {
       <p class="muted small">${r.output_format === 'licensed_clip' ? 'The reel uses a clip under permission.' : 'The reel is an original graphic; it contains no performance footage or audio.'}</p>
       <p><a href="/guide">← All originals</a></p>`));
   });
+
+  // ── Registration screen: everything the operator needs to add data without touching JSON ──────────
+  // A save answers with the saved row plus any warnings, so the screen can say "stored, but it will
+  // not be selected yet, and here is why" instead of silently accepting a half-filled record.
+  const savedOk = (res, r) => res.json({ ok: true, row: r.row, warnings: r.warnings });
+  const saveFailed = (res, e) => res.status(400).json({ ok: false, error: e.message, issues: e.issues ?? null });
+  const handleSave = (res, fn) => { try { savedOk(res, fn()); } catch (e) { saveFailed(res, e); } };
+
+  app.get('/api/entry/lists', (req, res) => {
+    res.json({
+      channels: db.prepare('SELECT * FROM source_channels ORDER BY name').all(),
+      videos: db.prepare(`SELECT sv.*, sc.name AS channel_name FROM source_videos sv
+                            JOIN source_channels sc ON sc.id = sv.channel_id ORDER BY sv.published_at DESC`).all(),
+      tracks: db.prepare('SELECT * FROM tracks ORDER BY track_key').all(),
+      candidates: loadCandidates(db).map((c) => ({ ...c, clip_assets: loadClipAssets(db, c.id) })),
+      rightsCategories: cfg.rights.requiredCategories,
+      categoryLabels: V.CATEGORY_KO,
+      arrangementTags: cfg.selection.differentiatingVersionTags,
+      today: todayIn(cfg.timezone),
+    });
+  });
+
+  app.post('/api/entry/channel', (req, res) => handleSave(res, () => entry.saveChannel(db, req.body ?? {})));
+  app.post('/api/entry/video', (req, res) => handleSave(res, () => entry.saveVideo(db, req.body ?? {})));
+  app.post('/api/entry/track', (req, res) => handleSave(res, () => entry.saveTrack(db, req.body ?? {})));
+  app.post('/api/entry/candidate', (req, res) => handleSave(res, () => entry.saveCandidate(db, req.body ?? {})));
+  app.post('/api/entry/clip-asset', (req, res) => handleSave(res, () => entry.saveClipAsset(db, cfg, req.body ?? {})));
+  app.post('/api/entry/permission', (req, res) => handleSave(res, () => entry.savePermission(db, req.body ?? {})));
+
+  app.post('/api/entry/active', (req, res) => {
+    const { kind, id, active } = req.body ?? {};
+    try { res.json({ ok: true, row: entry.setActive(db, kind, Number(id), Boolean(active)) }); }
+    catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  // Checks a candidate without saving it, so the form can warn while the operator is still typing.
+  app.post('/api/entry/check/candidate', (req, res) => {
+    res.json({ ok: true, issues: V.validateCandidate({ arrangement_tags: [], watch_cues: [], ...(req.body ?? {}) }) });
+  });
+
+  app.get('/api/entry/preview/:id', (req, res) => {
+    try { res.json({ ok: true, preview: previewCandidate(db, cfg, Number(req.params.id), req.query?.date || todayIn(cfg.timezone)) }); }
+    catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  // Uploads arrive as a raw body (no multipart dependency); the name travels in the query string.
+  const MB = 1024 * 1024;
+  async function readRawBody(req, maxBytes) {
+    const chunks = [];
+    let total = 0;
+    for await (const chunk of req) {
+      total += chunk.length;
+      if (total > maxBytes) throw new Error(`파일이 너무 큽니다 (최대 ${Math.round(maxBytes / MB)}MB)`);
+      chunks.push(chunk);
+    }
+    if (!total) throw new Error('빈 파일입니다');
+    return Buffer.concat(chunks);
+  }
+
+  const upload = (maxBytes, store) => async (req, res) => {
+    try {
+      const buf = await readRawBody(req, maxBytes);
+      res.json({ ok: true, ...store(cfg, req.query?.name, buf) });
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  };
+  app.post('/api/entry/upload/clip', upload(1024 * MB, entry.storeClipFile));
+  app.post('/api/entry/upload/evidence', upload(25 * MB, entry.storeEvidenceFile));
+
+  // The screens load the very same dictionary file the server uses, so the two can never drift.
+  app.get('/terms.js', (req, res) => res.type('js').sendFile(path.join(__dirname, '..', 'util', 'terms.js')));
 
   app.use('/output', express.static(cfg.resolved.output));
   app.use('/', express.static(path.join(__dirname, 'public')));

@@ -16,6 +16,10 @@
         <span class="sub" id="brandConcept">K-pop Live Versions &amp; Covers</span>
       </div>
     </div>
+    <nav class="views">
+      <button class="view-tab on" data-view="operate">운영</button>
+      <button class="view-tab" data-view="manage">데이터 등록</button>
+    </nav>
     <form class="run" id="runForm">
       <label>운영 날짜 <input type="date" id="runDate" required></label>
       <label class="check"><input type="checkbox" id="reselect"> 재선곡</label>
@@ -27,7 +31,7 @@
   <div class="notice" id="notice" hidden></div>
   <div class="server-note" id="serverNote" hidden></div>
 
-  <div class="layout">
+  <div class="layout" id="viewOperate">
     <aside class="days">
       <h2>운영 기록</h2>
       <ol id="dayList"><li class="muted">아직 실행 기록이 없습니다.</li></ol>
@@ -42,14 +46,25 @@
     </main>
   </div>
 
+  <div class="layout" id="viewManage" hidden>
+    <aside class="days">
+      <h2>등록 단계</h2>
+      <ol id="stepList" class="steps"></ol>
+      <p class="small muted" style="padding:0 14px">위에서 아래 순서로 채웁니다. 앞 단계가 없으면 뒤 단계를 저장할 수 없습니다.</p>
+    </aside>
+    <main id="managePanel" class="detail"></main>
+  </div>
+
   <template id="tplDay">
     <section class="flow" data-ref="flow"></section>
     <div class="cols">
       <div class="col-main">
         <section class="card" data-ref="selCard"></section>
         <section class="card">
-          <h3>후보 평가 <span class="muted small" data-ref="ruleVer"></span></h3>
-          <div class="table-wrap"><table class="cands" data-ref="candTable"></table></div>
+          <details>
+            <summary><b>후보를 어떻게 비교했는지 보기</b> <span class="muted small" data-ref="ruleVer"></span></summary>
+            <div class="table-wrap"><table class="cands" data-ref="candTable"></table></div>
+          </details>
         </section>
         <section class="card" data-ref="rightsCard"></section>
         <section class="card" data-ref="segCard"></section>
@@ -62,6 +77,8 @@
     </div>
   </template>
 
+  <script src="/terms.js"></script>
   <script src="/app.js"></script>
+  <script src="/manage.js"></script>
 </body>
 </html>
