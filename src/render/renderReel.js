@@ -21,6 +21,49 @@ function clipCues(cues, clipAsset) {
 }
 
 /**
+ * How much of the 9:16 frame the clip takes, and which part of a wide shot survives.
+ *
+ * A 16:9 clip scaled to the full width is only 608px of 1920 — a third of the frame — which is right
+ * when the whole stage matters and wrong when a face does. `fit: "cover"` and `fullBleed` trade the
+ * sides of the picture for height; `cropX` chooses which sides go. The operator's own choice is stored
+ * on the reel (`crop_x`) and wins over the template's default, so re-cropping needs no new template.
+ *
+ * A template with none of these keys behaves exactly as before: full width, original ratio, letterboxed.
+ */
+function videoBox(tpl, reel) {
+  const v = tpl.video ?? {};
+  const cropX = reel?.crop_x ?? v.cropX ?? 0.5;
+  return {
+    y: v.y ?? 650,
+    height: v.height ?? null,
+    fit: v.fit === 'cover' ? 'cover' : 'contain',
+    fullBleed: v.fullBleed === true,
+    cropX: Math.min(1, Math.max(0, Number(cropX))),
+  };
+}
+
+/**
+ * The clip's half of the filter graph. Text is always drawn after the picture, so a template may put
+ * it over the video or beside it purely by choosing coordinates.
+ */
+function clipFilter(cfg, vid, chain, bgIndex) {
+  const W = cfg.render.width, H = cfg.render.height, FPS = cfg.render.fps;
+  const x = `x=(in_w-out_w)*${vid.cropX}`;
+
+  if (vid.fullBleed) {
+    // No background: the clip itself is the bottom layer, filling the frame.
+    return `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,setsar=1,fps=${FPS},\n`
+      + `crop=${W}:${H}:${x}:y=(in_h-out_h)/2,\n${chain},format=yuv420p[v]`;
+  }
+  const scale = vid.fit === 'cover'
+    ? `scale=${W}:${vid.height ?? H}:force_original_aspect_ratio=increase,setsar=1,fps=${FPS},\n`
+      + `crop=${W}:${vid.height ?? H}:${x}:y=(in_h-out_h)/2`
+    : `scale=${W}:${vid.height ?? -2}:force_original_aspect_ratio=decrease,setsar=1,fps=${FPS}`;
+  return `[0:v]${scale}[clip];\n`
+    + `[${bgIndex}:v][clip]overlay=x=(W-w)/2:y=${vid.y}:shortest=1,\n${chain},format=yuv420p[v]`;
+}
+
+/**
  * @returns {Promise<{outputPath, posterPath, probe, templateId, layout}>} paths are project-relative when inside the project
  */
 async function renderReel({ cfg, reel, copy, clipAsset, operatingDate, templateId }) {
@@ -55,18 +98,23 @@ async function renderReel({ cfg, reel, copy, clipAsset, operatingDate, templateI
     const info = probe(cfg, src);
     if (!info) throw new Error(`Cannot probe clip file ${clipAsset.file_ref}`);
     dur = Math.round((clipAsset.source_end_sec - clipAsset.source_start_sec) * 1000) / 1000;
-    args.push('-ss', String(clipAsset.file_offset_sec), '-t', String(dur), '-i', src);
-    args.push('-f', 'lavfi', '-i', `color=c=${BG}:s=${W}x${H}:r=${FPS}:d=${dur}`);
-    if (!info.audio) args.push('-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo');
+
+    const vid = videoBox(tpl, reel);
+    args.push('-ss', String(clipAsset.file_offset_sec), '-t', String(dur), '-i', src);   // input 0: the clip
+    let next = 1;
+    let bg = null;
+    if (!vid.fullBleed) { args.push('-f', 'lavfi', '-i', `color=c=${BG}:s=${W}x${H}:r=${FPS}:d=${dur}`); bg = next++; }
+    let silent = null;
+    if (!info.audio) { args.push('-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo'); silent = next++; }
+
     // The credit line is the one thing a viewer of the file itself sees, so a personal-use render says so.
     const credit = clipAsset.personal_use_only
       ? '개인 테스트용 · 권리 미확인 · 배포 불가'
       : `Clip used with permission · ${clipAsset.permissions.map((p) => p.rights_holder).filter(Boolean).join(' / ')}`;
     const data = { ...g, credit: credit.length > 90 ? credit.slice(0, 87) + '...' : credit, clipCues: clipCues(g.cues, clipAsset) };
     layout = drawTemplate(fb, tpl, data, { accent, duration: dur });
-    filter = `[0:v]scale=${W}:-2:force_original_aspect_ratio=decrease,setsar=1,fps=${FPS}[clip];\n` +
-      `[1:v][clip]overlay=x=(W-w)/2:y=${tpl.video?.y ?? 650}:shortest=1,\n${fb.chain()},format=yuv420p[v]`;
-    args.push(filterScriptFlag(cfg), 'filter.txt', '-map', '[v]', '-map', info.audio ? '0:a' : '2:a', '-t', String(dur));
+    filter = clipFilter(cfg, vid, fb.chain(), bg);
+    args.push(filterScriptFlag(cfg), 'filter.txt', '-map', '[v]', '-map', info.audio ? '0:a' : `${silent}:a`, '-t', String(dur));
   }
   fs.writeFileSync(path.join(workDir, 'filter.txt'), filter, 'utf8');
   args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p', '-r', String(FPS),
@@ -79,4 +127,4 @@ async function renderReel({ cfg, reel, copy, clipAsset, operatingDate, templateI
   return { outputPath: `${relDir}/reel.mp4`, posterPath: `${relDir}/poster.png`, probe: p, templateId: tplId, layout };
 }
 
-module.exports = { renderReel, clipCues, wrap, textWidth };
+module.exports = { renderReel, clipCues, videoBox, clipFilter, wrap, textWidth };

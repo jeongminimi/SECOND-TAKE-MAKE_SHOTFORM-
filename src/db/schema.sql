@@ -145,6 +145,7 @@ CREATE TABLE IF NOT EXISTS reels (
   clip_asset_id       INTEGER REFERENCES clip_assets(id) ON DELETE RESTRICT,                     -- NULL for original_graphic
   output_format       TEXT    NOT NULL CHECK (output_format IN ('licensed_clip','original_graphic')),
   template_id         TEXT,                         -- templates/reels/<id>.json used for rendering
+  crop_x              REAL,                         -- operator's left/right framing, 0..1; NULL = use the template's own
   format_reason       TEXT    NOT NULL,
   format_reason_ko    TEXT,
   title_en            TEXT    NOT NULL,

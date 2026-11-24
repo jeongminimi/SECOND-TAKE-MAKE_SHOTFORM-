@@ -14,6 +14,7 @@ const { todayIn, fmtTimestamp } = require('../util/time');
 const { SEED } = require('../cli');
 const { analyzeAssets, approveSuggestion, rejectSuggestion, suggestionsForCandidate } = require('../analysis/structure');
 const { exportReel } = require('../export/exportReel');
+const { loadTemplate, listTemplates } = require('../render/templateEngine');
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -45,8 +46,14 @@ function createApp(cfg, db) {
        ORDER BY ds.operating_date DESC`).all().map((s) => ({ ...s, poster_url: mediaUrl(s.poster_path) }));
     let scenarioDates = {};
     try { scenarioDates = require(SEED)._meta.scenarioDates; } catch { /* optional */ }
+    // The screen offers a template per reel, so it needs to know which ones exist and what each does.
+    const templates = listTemplates().map((t) => ({
+      id: t.id, format: t.format, name: t.name, description: t.description,
+      crops: Boolean(t.video?.fullBleed || t.video?.fit === 'cover'),
+    }));
     res.json({ account: cfg.account, timezone: cfg.timezone, publishLocalTime: cfg.publish.localTime, ruleVersion: cfg.selection.ruleVersion,
-      weights: cfg.selection.weights, today: todayIn(cfg.timezone), scenarioDates, selections, expressFallback: Boolean(express.isFallback) });
+      weights: cfg.selection.weights, today: todayIn(cfg.timezone), scenarioDates, selections, templates,
+      expressFallback: Boolean(express.isFallback) });
   });
 
   app.get('/api/day/:date', (req, res) => {
@@ -77,6 +84,37 @@ function createApp(cfg, db) {
     try {
       const r = await serial(() => runDay(db, cfg, date, { reselect: Boolean(req.body?.reselect) }));
       res.json({ ok: true, date, selectionReused: r.selectionReused, reelCreated: r.reelCreated, rendered: r.rendered, status: r.selection.status });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  /**
+   * Re-frames one finished reel: a different template, or a different left/right crop, rendered onto
+   * the SAME reel row. The day is not selected again — only the picture changes.
+   */
+  app.post('/api/reel/:id/template', async (req, res) => {
+    try {
+      const reel = db.prepare('SELECT * FROM reels WHERE id = ?').get(Number(req.params.id));
+      if (!reel) throw new Error(`reel ${req.params.id} not found`);
+      const id = String(req.body?.template_id ?? '');
+      let tpl;
+      try { tpl = loadTemplate(id); } catch { throw new Error(`"${id}" is not a template in templates/reels/`); }
+      if (tpl.format !== reel.output_format) {
+        throw new Error(`Template ${id} is for ${tpl.format}, but reel ${reel.id} is ${reel.output_format}`);
+      }
+      const raw = req.body?.cropX;
+      const cropX = raw == null || raw === '' ? reel.crop_x : Math.min(1, Math.max(0, Number(raw)));
+      if (cropX != null && !Number.isFinite(cropX)) throw new Error('cropX must be a number between 0 and 1');
+
+      const date = db.prepare('SELECT ds.operating_date d FROM reels r JOIN daily_selections ds ON ds.id = r.selection_id WHERE r.id = ?').get(reel.id).d;
+      db.prepare(`UPDATE reels SET template_id = ?, crop_x = ?, render_status = 'pending',
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?`).run(id, cropX, reel.id);
+      const r = await serial(() => runDay(db, cfg, date));
+      res.json({
+        ok: true, date, reel_id: r.reel.id, template_id: r.reel.template_id, crop_x: cropX,
+        render_status: r.reel.render_status, render_error: r.reel.render_error ?? null,
+      });
     } catch (e) {
       res.status(400).json({ ok: false, error: e.message });
     }

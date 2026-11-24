@@ -1,8 +1,8 @@
 {
   "id": "clip-standard",
   "format": "licensed_clip",
-  "name": "Licensed clip, letterboxed",
-  "description": "16:9 clip centred in 9:16 with headline above, context below and evidence-backed cues popping up over the clip.",
+  "name": "원본 비율 (여백 있음)",
+  "description": "16:9 영상을 자르지 않고 가운데에 넣습니다. 화면의 약 3분의 1을 차지하고 위아래에 여백이 남습니다. 무대 전체를 그대로 보여 주고 싶을 때 씁니다. 글씨는 영상과 겹치지 않습니다.",
   "video": { "y": 650 },
   "progressBar": false,
   "elements": [

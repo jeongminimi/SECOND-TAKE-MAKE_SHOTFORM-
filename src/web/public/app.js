@@ -238,6 +238,80 @@ function mockHtml(d) {
     <div class="ft">${esc(c.program_name ?? '')} · Full official video in caption</div></div>`;
 }
 
+const CROP_STEPS = [
+  { v: 0, label: '왼쪽' }, { v: 0.25, label: '왼쪽 조금' }, { v: 0.5, label: '가운데' },
+  { v: 0.75, label: '오른쪽 조금' }, { v: 1, label: '오른쪽' },
+];
+
+/**
+ * How much of the frame the video takes, and which part of a wide shot is kept.
+ *
+ * Rendering takes tens of seconds, so nothing happens until the operator presses the button — moving
+ * the slider only changes what would be rendered. The slider is hidden for a template that does not
+ * crop, because there would be nothing for it to do.
+ */
+function shapeCard(d) {
+  const r = d.reel;
+  const all = (state.overview?.templates ?? []).filter((t) => t.format === r.output_format);
+  if (all.length < 2) return '';
+  const current = r.template_id ?? all[0].id;
+  const sel = all.find((t) => t.id === current) ?? all[0];
+  const cropX = r.crop_x == null ? 0.5 : Number(r.crop_x);
+  const nearest = CROP_STEPS.reduce((a, s) => (Math.abs(s.v - cropX) < Math.abs(a.v - cropX) ? s : a), CROP_STEPS[2]);
+
+  return `<div class="shape" id="shapeCard" data-reel="${r.id}">
+    <h4 class="small muted" style="margin:16px 0 8px">영상 모양</h4>
+    <div class="tabs shapes">${all.map((t) => `<button data-shape="${t.id}" class="${t.id === current ? 'on' : ''}" title="${esc(t.description ?? '')}">${esc(t.name ?? ko('template', t.id) ?? t.id)}</button>`).join('')}</div>
+    <p class="small muted" id="shapeDesc">${esc(sel.description ?? '')}</p>
+    <div class="fld inline" id="cropRow" ${sel.crops ? '' : 'hidden'}>
+      <label for="cropX">좌우 위치 <span class="muted" id="cropLabel">${esc(nearest.label)}</span></label>
+      <input type="range" id="cropX" min="0" max="4" step="1" value="${CROP_STEPS.indexOf(nearest)}">
+      <span class="fhelp">잘라낼 때 어느 쪽을 남길지 고릅니다. 움직여도 바로 만들지 않습니다.</span>
+    </div>
+    <div class="actions"><button class="btn" id="reshapeBtn">이 모양으로 다시 만들기</button></div>
+    <div class="upstate" id="shapeState"></div></div>`;
+}
+
+/** Picking a shape only changes the pending choice; the button is what starts a render. */
+function wireShape(d) {
+  const card = $('#shapeCard');
+  if (!card) return;
+  const all = (state.overview?.templates ?? []).filter((t) => t.format === d.reel.output_format);
+  let chosen = d.reel.template_id ?? all[0]?.id;
+
+  card.querySelectorAll('[data-shape]').forEach((b) => b.addEventListener('click', () => {
+    chosen = b.dataset.shape;
+    card.querySelectorAll('[data-shape]').forEach((x) => x.classList.toggle('on', x === b));
+    const t = all.find((x) => x.id === chosen);
+    $('#shapeDesc').textContent = t?.description ?? '';
+    $('#cropRow').hidden = !t?.crops;
+  }));
+
+  const slider = $('#cropX');
+  if (slider) slider.addEventListener('input', () => { $('#cropLabel').textContent = CROP_STEPS[Number(slider.value)].label; });
+
+  $('#reshapeBtn').addEventListener('click', async () => {
+    const btn = $('#reshapeBtn');
+    const was = btn.textContent;
+    btn.disabled = true; btn.textContent = '영상을 다시 만들고 있습니다…';
+    $('#shapeState').textContent = '수십 초 걸립니다. 이 창을 그대로 두세요.';
+    try {
+      const r = await api(`/api/reel/${d.reel.id}/template`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: chosen, cropX: CROP_STEPS[Number(slider?.value ?? 2)].v }),
+      });
+      if (r.render_status !== 'done') throw new Error(r.render_error || `영상 제작이 ${ko('renderStatus', r.render_status)} 상태입니다`);
+      notice(`${ko('template', r.template_id) || r.template_id} 모양으로 다시 만들었습니다. 같은 릴스 #${r.reel_id}이고, 다시 고르지 않았습니다.`);
+      await loadOverview();
+      await showDay(d.selection.operating_date);
+    } catch (e) {
+      $('#shapeState').textContent = '';
+      notice(`다시 만들지 못했습니다: ${e.message}`, true);
+      btn.disabled = false; btn.textContent = was;
+    }
+  });
+}
+
 function previewCard(d) {
   const r = d.reel;
   const hasVideo = r.render_status === 'done' && r.video_url;
@@ -245,6 +319,7 @@ function previewCard(d) {
     <div class="tabs"><button data-tab="mp4" class="${hasVideo ? 'on' : ''}" ${hasVideo ? '' : 'disabled'}>완성본</button><button data-tab="html" class="${hasVideo ? '' : 'on'}">구성 미리보기</button></div>
     <div class="phone" id="phone">${hasVideo ? `<video src="${r.video_url}" poster="${r.poster_url}" controls loop playsinline></video>` : mockHtml(d)}</div>
     <p class="small muted">${hasVideo ? '이 영상이 그대로 올라갑니다.' : `아직 영상이 없습니다 (${esc(ko('renderStatus', r.render_status))}) — 구성만 보여 줍니다.`}</p>
+    ${shapeCard(d)}
     <div class="actions"><button class="btn" id="exportBtn" data-reel="${r.id}" ${hasVideo ? '' : 'disabled'}>영상 내보내기</button></div>
     <p class="small muted">${hasVideo
       ? '영상·첫 화면·캡션·설명을 이 릴스만의 폴더에 모아 둡니다. 다른 릴스를 내보낸 폴더는 지워지지 않습니다.'
@@ -321,6 +396,7 @@ async function showDay(date) {
     root.querySelectorAll('[data-tab]').forEach((x) => x.classList.toggle('on', x === b));
     $('#phone').innerHTML = b.dataset.tab === 'mp4' ? `<video src="${d.reel.video_url}" poster="${d.reel.poster_url}" controls loop playsinline></video>` : mockHtml(d);
   }));
+  wireShape(d);
   const exportBtn = $('#exportBtn');
   if (exportBtn && !exportBtn.disabled) {
     exportBtn.addEventListener('click', async () => {

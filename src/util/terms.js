@@ -31,7 +31,12 @@
     // reels.output_format
     format: { licensed_clip: '공연 클립형', original_graphic: '자체 그래픽형' },
     // reels.template_id
-    template: { 'graphic-classic': '한 장 카드형', 'graphic-sequence': '3장면 전환형', 'clip-standard': '공연 클립형 기본' },
+    template: {
+      'graphic-classic': '한 장 카드형', 'graphic-sequence': '3장면 전환형',
+      // Clip templates differ only in how much of the frame the video takes and where the text sits.
+      'clip-standard': '원본 비율 (여백 있음)', 'clip-large': '크게 (좌우 약간 잘림)',
+      'clip-full': '꽉 채우기 (글씨가 영상 위에)', 'clip-minimal': '꽉 채우기 · 글씨 최소',
+    },
     // usage_permissions.rights_category
     category: { footage: '영상 권리', music: '음악 권리', performance: '실연 권리' },
     // usage_permissions.status

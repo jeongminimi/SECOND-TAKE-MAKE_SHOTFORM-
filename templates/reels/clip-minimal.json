@@ -1,0 +1,16 @@
+{
+  "id": "clip-minimal",
+  "format": "licensed_clip",
+  "name": "꽉 채우기 · 글씨 최소",
+  "description": "영상이 화면 전체를 채우고, 아래쪽에만 꼭 필요한 글씨가 들어갑니다 — 브랜드, 공연자, 공식 출처, 안내. 제목과 '왜 볼 만한가'는 캡션에만 두고 영상에는 넣지 않습니다. 무대 자체를 보여 주고 싶을 때 씁니다.",
+  "video": { "fullBleed": true, "cropX": 0.5 },
+  "progressBar": false,
+  "elements": [
+    { "type": "scrim", "y": 1460, "h": 460, "color": "black", "opacity": 0.6, "from": "bottom" },
+
+    { "type": "text", "bind": "brand", "size": 30, "color": "accent", "y": 1560, "shadow": true },
+    { "type": "text", "bind": "performerLine", "size": 42, "gap": 18, "shadow": true },
+    { "type": "text", "bind": "footer", "size": 26, "color": "#D2D2DC", "y": 1778, "shadow": true },
+    { "type": "text", "bind": "credit", "size": 22, "color": "#C8C8D2", "y": 1822, "shadow": true }
+  ]
+}

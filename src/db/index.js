@@ -30,6 +30,8 @@ const COLUMN_MIGRATIONS = [
   ['reels', 'format_reason_ko', 'TEXT'],
   ['publish_jobs', 'expected_status_ko', 'TEXT'],
   ['clip_assets', 'personal_use_only', 'INTEGER NOT NULL DEFAULT 0'],
+  // Left as NULL on purpose: a reel with no stored framing uses whatever its template asks for.
+  ['reels', 'crop_x', 'REAL'],
 ];
 function migrate(db) {
   for (const [table, col, ddl] of COLUMN_MIGRATIONS) {

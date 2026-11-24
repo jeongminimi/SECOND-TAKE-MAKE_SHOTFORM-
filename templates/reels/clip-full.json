@@ -1,0 +1,25 @@
+{
+  "id": "clip-full",
+  "format": "licensed_clip",
+  "name": "꽉 채우기 (글씨가 영상 위에)",
+  "description": "영상이 화면 전체를 채우고 글씨가 그 위에 얹힙니다. 좌우가 많이 잘리므로 가운데에 인물이 있는 영상에 맞습니다. 밝은 장면에서도 읽히도록 위아래에 어두운 띠를 깔고 글씨에 그림자를 넣습니다.",
+  "video": { "fullBleed": true, "cropX": 0.5 },
+  "progressBar": false,
+  "elements": [
+    { "type": "scrim", "y": 0, "h": 520, "color": "black", "opacity": 0.55, "from": "top" },
+    { "type": "scrim", "y": 1340, "h": 580, "color": "black", "opacity": 0.6, "from": "bottom" },
+
+    { "type": "text", "bind": "brand", "size": 34, "color": "accent", "y": 120, "shadow": true },
+    { "type": "text", "value": "LIVE VERSIONS & COVERS", "size": 24, "color": "#C8C8D2", "x": "right", "y": 128, "shadow": true },
+    { "type": "pill", "bind": "tag", "size": 38, "y": 196 },
+    { "type": "text", "bind": "headline", "size": 68, "wrap": 24, "y": 300, "shadow": true, "fadeIn": 0.2 },
+
+    { "type": "clipCues", "bind": "clipCues", "size": 36, "y": 1240, "holdSec": 2.8 },
+
+    { "type": "text", "bind": "performerLine", "size": 44, "y": 1420, "shadow": true },
+    { "type": "text", "bind": "koLine", "size": 36, "color": "#D2D2DC", "gap": 10, "shadow": true },
+    { "type": "text", "bind": "why", "size": 40, "wrap": 32, "gap": 30, "shadow": true, "fadeIn": 0.8 },
+    { "type": "text", "bind": "footer", "size": 26, "color": "#D2D2DC", "y": 1780, "shadow": true },
+    { "type": "text", "bind": "credit", "size": 22, "color": "#C8C8D2", "y": 1824, "shadow": true }
+  ]
+}

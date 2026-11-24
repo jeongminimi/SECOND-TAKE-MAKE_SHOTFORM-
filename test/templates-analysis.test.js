@@ -21,12 +21,16 @@ const asset = (db, key) => { const a = db.prepare('SELECT id, candidate_id FROM 
 test('templates: all JSON templates load and rotate deterministically by date', async () => {
   const { cfg } = await makeEnv();
   const ids = listTemplates().map((t) => t.id).sort();
-  assert.deepEqual(ids, ['clip-standard', 'graphic-classic', 'graphic-sequence']);
+  assert.deepEqual(ids, ['clip-full', 'clip-large', 'clip-minimal', 'clip-standard', 'graphic-classic', 'graphic-sequence']);
   const a = pickTemplate(cfg, 'original_graphic', '2026-11-15');
   const b = pickTemplate(cfg, 'original_graphic', '2026-11-16');
   assert.notEqual(a, b);                                            // consecutive days alternate
   assert.equal(pickTemplate(cfg, 'original_graphic', '2026-11-15'), a); // deterministic
+  // The three new clip shapes exist to be chosen by hand. They are deliberately NOT in the rotation,
+  // so an automatic run still produces the letterboxed shape it always did.
+  assert.deepEqual(cfg.render.templates.licensed_clip, ['clip-standard']);
   assert.equal(pickTemplate(cfg, 'licensed_clip', '2026-11-23'), 'clip-standard');
+  assert.equal(pickTemplate(cfg, 'licensed_clip', '2026-11-24'), 'clip-standard');
 });
 
 test('templates: both graphic templates render a valid 1080x1920 MP4', async (t) => {

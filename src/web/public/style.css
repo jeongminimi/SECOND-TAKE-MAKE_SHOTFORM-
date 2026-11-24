@@ -154,3 +154,7 @@ details.advanced[open] { padding-bottom: 2px; }
 /* Export result: a folder path plus one line per file, kept selectable so it can be copied. */
 .upstate.paths { white-space: pre-wrap; user-select: all; }
 
+/* Video-shape picker: one row of templates, then the left/right slider when the shape crops. */
+.tabs.shapes { flex-wrap: wrap; }
+.shape .fld.inline { display: block; margin-top: 10px; }
+.shape input[type=range] { width: 100%; max-width: 320px; display: block; margin: 6px 0; }

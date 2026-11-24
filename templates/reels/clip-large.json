@@ -1,0 +1,22 @@
+{
+  "id": "clip-large",
+  "format": "licensed_clip",
+  "name": "크게 (좌우 약간 잘림)",
+  "description": "영상을 화면의 약 3분의 2까지 키웁니다. 좌우가 조금 잘리는 대신 무대가 크게 보입니다. 글씨는 위아래 남은 띠에 들어가고, 아래쪽만 영상에 조금 걸칩니다.",
+  "video": { "y": 360, "height": 1200, "fit": "cover", "cropX": 0.5 },
+  "progressBar": false,
+  "elements": [
+    { "type": "text", "bind": "brand", "size": 34, "color": "accent", "y": 120 },
+    { "type": "text", "value": "LIVE VERSIONS & COVERS", "size": 24, "color": "#8A8A96", "x": "right", "y": 128 },
+    { "type": "pill", "bind": "tag", "size": 36, "y": 196 },
+
+    { "type": "scrim", "y": 1360, "h": 200, "color": "black", "opacity": 0.5, "from": "bottom" },
+    { "type": "clipCues", "bind": "clipCues", "size": 36, "y": 1240, "holdSec": 2.8 },
+    { "type": "text", "bind": "headline", "size": 60, "wrap": 28, "y": 1396, "shadow": true, "fadeIn": 0.2 },
+
+    { "type": "text", "bind": "performerLine", "size": 40, "color": "#E6E6EC", "gap": 24 },
+    { "type": "text", "bind": "koLine", "size": 34, "color": "#9A9AA6", "gap": 8 },
+    { "type": "text", "bind": "footer", "size": 26, "color": "#8A8A96", "y": 1770 },
+    { "type": "text", "bind": "credit", "size": 22, "color": "#6E6E7A", "y": 1812 }
+  ]
+}
