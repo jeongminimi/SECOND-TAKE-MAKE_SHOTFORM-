@@ -109,7 +109,7 @@ test('submit: without name_evidence the candidate still saves, and loses the Eng
 test('submit: the button condition includes the version-evidence rule, and only when a tag is on', () => {
   const fn = /function refreshSubmit\(\) \{[\s\S]*?\n\}/.exec(CREATE)[0];
   assert.match(fn, /tagsChecked\(\)\.length > 0 && !cEl\('cVersionEv'\)/, 'a tag without its source locks the button');
-  assert.match(fn, /\[!taggedWithoutSource, '편곡 태그 근거'\]/, 'and it is listed by name among what is missing');
+  assert.match(fn, /\[!taggedWithoutSource, '편곡 태그 근거', 'cVersionEv'\]/, 'and it is listed by name among what is missing');
   assert.doesNotMatch(fn, /\[cEl\('cNameEv'\)\?\.value/, 'name_evidence never locks the button — it does not block a save');
   assert.match(fn, /cNameEv.*자동 선곡에서는 빠집니다/, 'it warns instead');
 
@@ -171,7 +171,7 @@ test('submit: one of the three kinds of source is required, and no placeholder s
   assert.match(need, /kind === 'youtube'.*normalized_url \? null : '유튜브 주소 가져오기'/, 'a YouTube stage needs its link');
   assert.match(need, /kind === 'other'.*isUrl\(cEl\('cSrcUrl'\)\?\.value\) \? null : '출처 주소'/, 'another site needs that address');
   assert.match(need, /val\('cSrcNote'\) \? null : '출처 \(어디서 얻었는지\)'/, 'and a self-shot video needs the line');
-  assert.match(/function refreshSubmit\(\) \{[\s\S]*?\n\}/.exec(CREATE)[0], /\[!sourceNeed\(\), sourceNeed\(\)\]/,
+  assert.match(/function refreshSubmit\(\) \{[\s\S]*?\n\}/.exec(CREATE)[0], /\[!sourceNeed\(\), sourceNeed\(\), srcField\]/,
     'whichever it is, the button stays locked until it is there');
 
   // the operator is told exactly what their own line becomes
@@ -196,4 +196,34 @@ test('submit: a stage from another site saves with that address as its official 
     assert.ok(!(v.body.issues ?? []).some((i) => i.code === 'official_url_missing'), 'and it no longer counts as source-less');
     assert.equal(db.prepare('SELECT COUNT(*) n FROM source_videos').get().n, 1);
   });
+});
+
+// ── pressing a locked button goes to what is empty ───────────────────────────────────────────────
+test('submit: a press with something still empty moves to that field and puts the cursor in it', () => {
+  // the button has to receive the click, so it is locked by class and not by the disabled attribute
+  const fn = /function refreshSubmit\(\) \{[\s\S]*?\n\}/.exec(CREATE)[0];
+  assert.match(fn, /btn\.disabled = false/, 'a disabled button would swallow the press');
+  assert.match(fn, /btn\.classList\.toggle\('locked', need\.length > 0\)/, 'it still looks unavailable');
+  assert.match(fn, /btn\.setAttribute\('aria-disabled'/, 'and says so to a screen reader');
+  assert.match(read('style.css'), /\.btn\.locked \{/);
+
+  // the press jumps instead of saving
+  assert.match(CREATE, /if \(cstate\.missing\?\.length\) \{ jumpToMissing\(\); return; \}/);
+  const jump = /function jumpToMissing\(\) \{[\s\S]*?\n\}/.exec(CREATE)[0];
+  assert.match(jump, /scrollIntoView\(\{ behavior: 'smooth', block: 'center' \}\)/, 'the field is brought on screen');
+  assert.match(jump, /el\.focus\(/, 'and the cursor is put in it');
+
+  // first in screen order, not in the order the checks happen to be written
+  assert.match(fn, /cstate\.missing = missing\.map\(\[, , id\]\) ?=> ?id\)?/.source ? /cstate\.missing = missing\.map/ : /cstate\.missing/);
+  assert.match(fn, /\.sort\(inScreenOrder\)/);
+  assert.match(fn, /DOCUMENT_POSITION_FOLLOWING/);
+
+  // every empty field is outlined, so the one jumped to is not the only clue
+  assert.match(CREATE, /function markMissing\(ids\)/);
+  assert.match(read('style.css'), /\.fld\.missing input/);
+
+  // each entry carries the field the label refers to, including the one the source kind decides
+  assert.match(fn, /\[cEl\('cPerformer'\)\?\.value\.trim\(\), '공연자', 'cPerformer'\]/);
+  assert.match(fn, /\[!taggedWithoutSource, '편곡 태그 근거', 'cVersionEv'\]/);
+  assert.match(fn, /srcField = \{ youtube: 'ytUrl', other: 'cSrcUrl', none: 'cSrcNote' \}/);
 });

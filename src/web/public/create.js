@@ -20,7 +20,7 @@
  *    the program cannot know whether a title proves anything — or whether a channel is official.
  */
 
-const cstate = { lookup: null, fileRef: null, videoFiles: null, result: null };
+const cstate = { lookup: null, fileRef: null, videoFiles: null, result: null, missing: [] };
 
 const cEl = (id) => document.getElementById(id);
 const AUTO = '<span class="autofill">자동으로 채움 — 확인하세요</span>';
@@ -169,18 +169,35 @@ function refreshSubmit() {
   const btn = cEl('cSubmit');
   if (!btn) return;
   const taggedWithoutSource = tagsChecked().length > 0 && !cEl('cVersionEv')?.value.trim();
-  const need = [
-    [cEl('cOfficial')?.checked, '공식 채널 확인'],
-    [cEl('cChecked')?.checked, '확인했습니다'],
-    [cEl('cPerformer')?.value.trim(), '공연자'],
-    [cEl('cTitle')?.value.trim(), '곡명'],
-    [cEl('cPublished')?.value, '공개일'],
-    [cstate.fileRef, '영상 파일'],
-    [cEl('cStart')?.value.trim(), '구간 시작'],
-    [!taggedWithoutSource, '편곡 태그 근거'],
-    [!sourceNeed(), sourceNeed()],
-  ].filter(([ok]) => !ok).map(([, label]) => label);
-  btn.disabled = need.length > 0;
+  const srcField = { youtube: 'ytUrl', other: 'cSrcUrl', none: 'cSrcNote' }[srcKind()];
+  const missing = [
+    [cEl('cOfficial')?.checked, '공식 채널 확인', 'cOfficial'],
+    [cEl('cChecked')?.checked, '확인했습니다', 'cChecked'],
+    [cEl('cPerformer')?.value.trim(), '공연자', 'cPerformer'],
+    [cEl('cTitle')?.value.trim(), '곡명', 'cTitle'],
+    [cEl('cPublished')?.value, '공개일', 'cPublished'],
+    [cstate.fileRef, '영상 파일', 'cFileList'],
+    [cEl('cStart')?.value.trim(), '구간 시작', 'cStart'],
+    [!taggedWithoutSource, '편곡 태그 근거', 'cVersionEv'],
+    [!sourceNeed(), sourceNeed(), srcField],
+  ].filter(([ok]) => !ok);
+
+  // Which fields they are, in the order they appear on screen — that is the order a person would
+  // fill them in, and the order pressing the button walks through.
+  const inScreenOrder = (a, b) => {
+    const [x, y] = [cEl(a), cEl(b)];
+    if (!x || !y) return 0;
+    return x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+  };
+  cstate.missing = missing.map(([, , id]) => id).filter(Boolean).sort(inScreenOrder);
+  markMissing(cstate.missing);
+  const need = missing.map(([, label]) => label);
+
+  // Locked, but not `disabled`: a disabled button swallows the click, and pressing it is how the
+  // operator asks "what is left?" — so it stays clickable and the press jumps to the empty field.
+  btn.disabled = false;
+  btn.classList.toggle('locked', need.length > 0);
+  btn.setAttribute('aria-disabled', String(need.length > 0));
 
   // What a finished attempt said stays until the operator changes something; otherwise the line under
   // the button would snap back to a checklist the moment a save failed, which reads as "nothing
@@ -286,6 +303,27 @@ async function fetchUrl() {
 
 const tagsChecked = () => [...document.querySelectorAll('[data-ctag]')].filter((b) => b.checked).map((b) => b.dataset.ctag);
 const val = (id) => cEl(id)?.value.trim() || null;
+
+/** Outlines every field that is still empty, so the one being jumped to is not the only clue. */
+function markMissing(ids) {
+  for (const el of document.querySelectorAll('.fld.missing, .check.missing')) el.classList.remove('missing');
+  for (const id of ids) cEl(id)?.closest('.fld, .check')?.classList.add('missing');
+}
+
+/**
+ * Pressing a locked button moves to the first thing that is still empty and puts the cursor in it.
+ * Saying what is missing in a line of text is not much help on a form this long — the field itself is
+ * usually off screen, which is the same problem the invisible error had.
+ */
+function jumpToMissing() {
+  const el = cEl(cstate.missing?.[0]);
+  if (!el) return;
+  const fld = el.closest('.fld, .check') ?? el;
+  fld.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // A checkbox takes focus but shows nothing, so the surrounding row is flagged either way.
+  el.focus({ preventScroll: true });
+  if (typeof el.select === 'function' && el.type !== 'checkbox' && el.type !== 'date') el.select();
+}
 
 /** Which of the three kinds of source the operator said this performance came from. */
 const srcKind = () => document.querySelector('[name="cSrcKind"]:checked')?.value ?? 'youtube';
@@ -456,7 +494,11 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#ytFetch')) { fetchUrl(); return; }
   if (e.target.closest('#ytRecheck')) { recheckFolder(); return; }
   if (e.target.closest('#cUploadBtn')) { cEl('cFile').click(); return; }
-  if (e.target.closest('#cSubmit')) { submitAll(); return; }
+  if (e.target.closest('#cSubmit')) {
+    if (cstate.missing?.length) { jumpToMissing(); return; }
+    submitAll();
+    return;
+  }
 });
 
 document.addEventListener('change', async (e) => {
