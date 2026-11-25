@@ -72,15 +72,21 @@ function color(c, accent) {
   throw new Error(`Unsupported color "${c}"`);
 }
 
-/** Visibility window → { enable, alpha } expressions (or nulls when static). */
-function timing(el, duration) {
+/**
+ * Visibility window → { enable, alpha } expressions (or nulls when static).
+ *
+ * `noFade` is for a one-frame preview: a fade-in evaluated at t=0 is fully transparent, so the very
+ * text the operator is checking for collisions would be missing from the picture. Timed elements
+ * (`show`) keep their window — they genuinely are not on screen at that moment.
+ */
+function timing(el, duration, noFade = false) {
   if (el.show) {
     const [a, b] = el.show;
     const fin = a > 0 ? `if(lt(t,${a + FADE}),(t-${a})/${FADE},` : '';
     const fout = b < duration ? `if(gt(t,${b - FADE}),max(0,(${b}-t)/${FADE}),1)` : '1';
     return { enable: `between(t,${a},${b})`, alpha: `${fin}${fout}${a > 0 ? ')' : ''}` };
   }
-  if (el.fadeIn != null) return { enable: null, alpha: `min(1,max(0,(t-${el.fadeIn})/0.5))` };
+  if (el.fadeIn != null) return { enable: null, alpha: noFade ? null : `min(1,max(0,(t-${el.fadeIn})/0.5))` };
   return { enable: null, alpha: null };
 }
 
@@ -144,7 +150,7 @@ function drawScrim(fb, el, accent, enable) {
  * Draws every template element. `data` holds the bindings (headline, why, cues, clipCues …).
  * Returns a layout report (which elements were drawn, final cursor) for tests and debugging.
  */
-function drawTemplate(fb, tpl, data, { accent, duration, margin = 90 }) {
+function drawTemplate(fb, tpl, data, { accent, duration, margin = 90, noFade = false }) {
   let cursor = 0;
   const drawn = [];
   for (const el of tpl.elements) {
@@ -152,7 +158,7 @@ function drawTemplate(fb, tpl, data, { accent, duration, margin = 90 }) {
     if ((el.if && !data[el.if]) || (el.bind && (value == null || value === '' || (Array.isArray(value) && !value.length)))) continue;
     // A scrim sits behind whatever follows it at its own absolute y: it must not move the cursor.
     if (el.type === 'scrim') {
-      drawScrim(fb, el, accent, timing(el, duration).enable);
+      drawScrim(fb, el, accent, timing(el, duration, noFade).enable);
       drawn.push({ type: 'scrim', bind: null, y: el.y ?? 0, h: 0 });
       continue;
     }
@@ -160,7 +166,7 @@ function drawTemplate(fb, tpl, data, { accent, duration, margin = 90 }) {
     else if (typeof el.gap === 'number') cursor += el.gap;
     if (typeof el.minY === 'number') cursor = Math.max(cursor, el.minY);
     const x = el.x === 'right' ? `w-tw-${margin}` : (el.x ?? margin);
-    const { enable, alpha } = timing(el, duration);
+    const { enable, alpha } = timing(el, duration, noFade);
     const size = el.size ?? 40;
     const pitch = Math.round(size * (el.pitch ?? 1.2));
     const col = color(el.color ?? (el.type === 'pill' ? 'accent' : 'white'), accent);

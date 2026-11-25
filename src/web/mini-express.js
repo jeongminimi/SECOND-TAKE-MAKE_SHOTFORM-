@@ -2,13 +2,17 @@
 /**
  * Fallback used ONLY when the `express` package is not installed (e.g. offline sandbox).
  * Implements the tiny subset this app uses: app.get/post with :params, app.use(prefix, static),
- * express.json(), res.json/send/status/type/sendFile. Run `npm install` to use real Express.
+ * express.json(), res.json/send/status/type/set/sendFile. Run `npm install` to use real Express.
+ *
+ * This file only ever grows by catching up with something server.js already does. Before using an
+ * Express response method in a route, check it exists here — test/web.test.js runs the whole API
+ * against this implementation so a missing one fails there rather than on someone's machine.
  */
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.mp4': 'video/mp4', '.svg': 'image/svg+xml', '.txt': 'text/plain; charset=utf-8' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.mp4': 'video/mp4', '.svg': 'image/svg+xml', '.txt': 'text/plain; charset=utf-8' };
 
 function compile(p) {
   const keys = [];
@@ -40,6 +44,7 @@ function miniExpress() {
   const enhance = (req, res) => {
     res.status = (c) => { res.statusCode = c; return res; };
     res.type = (t) => { res.setHeader('Content-Type', MIME['.' + t] ?? t); return res; };
+    res.set = (k, v) => { if (k && typeof k === 'object') for (const [n, val] of Object.entries(k)) res.setHeader(n, val); else res.setHeader(k, v); return res; };
     res.json = (o) => { if (!res.getHeader('Content-Type')) res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(o)); };
     res.send = (b) => { if (!res.getHeader('Content-Type')) res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(b); };
     res.sendFile = (f) => sendFile(req, res, f);

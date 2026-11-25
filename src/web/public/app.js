@@ -22,7 +22,7 @@ const idTag = (v) => (v ? `<div class="k">${esc(v)}</div>` : '');
 const songOf = (s) => [s.performer_en, s.song_title_en ?? s.song_title_ko].filter(Boolean).join(' – ') || s.title_en || '—';
 const size = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
 
-let state = { overview: null, current: null };
+let state = { overview: null, current: null, links: new Map() };
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
@@ -43,15 +43,18 @@ function emptyState() {
   return `<section class="empty">
     <h1>${hasData ? '왼쪽에서 날짜를 고르세요' : '아직 등록된 후보가 없습니다'}</h1>
     <p>${hasData
-      ? '운영 기록에서 날짜를 누르면 그날 무엇이 뽑혔고 왜 그렇게 됐는지 볼 수 있습니다.'
-      : '위의 <b>데이터 등록</b> 탭에서 1단계(공식 채널)부터 차례로 채우세요. 후보가 하나라도 있으면 날짜를 골라 <b>파이프라인 실행</b>을 누를 수 있습니다.'}</p>
-    ${hasData ? '' : '<p class="small muted">시나리오 날짜 버튼을 누르면 미리 들어 있는 예시 데이터로 전체 흐름을 먼저 볼 수도 있습니다.</p>'}
+      ? '왼쪽 <b>운영 기록</b>에서 날짜를 누르면 그날 무엇이 뽑혔고 왜 그렇게 됐는지 볼 수 있습니다.'
+      : '위 <b>1. 영상 고르기</b>에 유튜브 주소를 붙여넣고 시작하세요. 이미 등록한 자료를 고치려면 왼쪽 <b>자료 손보기</b>를 여세요.'}</p>
+    ${hasData ? '' : '<p class="small muted">왼쪽 <b>운영 기록</b>의 시나리오 날짜를 누르면 예시 데이터로 전체 흐름을 먼저 볼 수도 있습니다.</p>'}
   </section>`;
 }
 
 async function loadOverview() {
   const o = await api('/api/overview');
   state.overview = o;
+  // official_url and platform_video_id already ride along here; the comparison snapshot does not
+  // carry them, so they are joined on by candidate id rather than re-stored.
+  try { state.links = new Map((await api('/api/candidates')).map((c) => [c.id, c])); } catch { state.links = new Map(); }
   $('#brandName').textContent = o.account.displayName;
   $('#brandConcept').textContent = `${o.account.concept} · ${o.account.handle}`;
   if (!$('#runDate').value) $('#runDate').value = Object.keys(o.scenarioDates)[0] ?? o.today;
@@ -86,7 +89,7 @@ async function run(date, reselect = false) {
   } catch (e) {
     notice(`${date}: ${e.message}`, true);
   } finally {
-    btn.disabled = false; btn.textContent = '파이프라인 실행';
+    btn.disabled = false; btn.textContent = '오늘의 추천 받기';
     $('#reselect').checked = false;
   }
 }
@@ -124,10 +127,27 @@ function scoreHtml(items) {
     <div class="row"><span></span><span class="why">${esc(i.reason_ko ?? i.reason)}</span></div>`).join('')}</div>`;
 }
 
+/**
+ * The original video, as something to look at.
+ *
+ * Recommending a performance without a way to watch it asks the operator to trust the ranking. The
+ * link and the thumbnail both come from what is already stored — the thumbnail is YouTube's own
+ * address, never a downloaded copy — and a thumbnail that fails to load removes itself rather than
+ * leaving a broken icon.
+ */
+function videoLink(candidateId, { thumb = true } = {}) {
+  const c = state.links?.get(candidateId);
+  if (!c?.official_url) return '';
+  const img = thumb && c.platform_video_id
+    ? `<img class="ythumb" loading="lazy" alt="" src="https://i.ytimg.com/vi/${encodeURIComponent(c.platform_video_id)}/hqdefault.jpg" onerror="this.remove()">`
+    : '';
+  return `<a class="ylink" href="${esc(c.official_url)}" target="_blank" rel="noopener noreferrer">${img}<span>영상 보기 ↗</span></a>`;
+}
+
 function candTable(d) {
   const pickedId = d.selection.candidate_id;
   const rows = [...d.snapshot].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
-  return `<thead><tr><th>순위</th><th>후보</th><th>버전</th><th>점수</th><th>클립</th></tr></thead><tbody>${rows.map((c) => {
+  return `<thead><tr><th>순위</th><th>영상</th><th>후보</th><th>버전</th><th>점수</th><th>클립</th></tr></thead><tbody>${rows.map((c) => {
     const tags = [c.performance_type, ...(c.arrangement_tags ?? [])].filter(Boolean).map((t) => ko('tag', t)).join(' · ');
     const clip = !c.clip ? '<span class="muted">-</span>'
       : c.clip.usable_asset_key ? '<span class="badge ok">쓸 수 있음</span>'
@@ -136,6 +156,7 @@ function candTable(d) {
       : '<span class="muted">등록된 클립 없음</span>';
     return `<tr class="${c.candidate_id === pickedId ? 'picked' : ''}">
       <td>${c.rank ?? '<span class="badge">제외</span>'}</td>
+      <td>${videoLink(c.candidate_id) || '<span class="muted">-</span>'}</td>
       <td><b>${esc(c.performer_en ?? '공연자 미입력')}</b> – ${esc(c.title_en ?? c.title_ko ?? '곡 미연결')}${idTag(c.candidate_key)}
         ${c.eligible ? '' : `<ul>${c.exclusions.map((x) => `<li>${esc(x.text_ko ?? x.text)}</li>`).join('')}</ul>`}</td>
       <td>${esc(tags)}</td>
@@ -242,6 +263,11 @@ const CROP_STEPS = [
   { v: 0, label: '왼쪽' }, { v: 0.25, label: '왼쪽 조금' }, { v: 0.5, label: '가운데' },
   { v: 0.75, label: '오른쪽 조금' }, { v: 1, label: '오른쪽' },
 ];
+const CROPY_STEPS = [
+  { v: 0, label: '위' }, { v: 0.25, label: '위쪽' }, { v: 0.5, label: '가운데' },
+  { v: 0.75, label: '아래쪽' }, { v: 1, label: '아래' },
+];
+const nearestStep = (steps, v) => steps.reduce((a, s) => (Math.abs(s.v - v) < Math.abs(a.v - v) ? s : a), steps[2]);
 
 /**
  * How much of the frame the video takes, and which part of a wide shot is kept.
@@ -256,39 +282,103 @@ function shapeCard(d) {
   if (all.length < 2) return '';
   const current = r.template_id ?? all[0].id;
   const sel = all.find((t) => t.id === current) ?? all[0];
-  const cropX = r.crop_x == null ? 0.5 : Number(r.crop_x);
-  const nearest = CROP_STEPS.reduce((a, s) => (Math.abs(s.v - cropX) < Math.abs(a.v - cropX) ? s : a), CROP_STEPS[2]);
+  const zoom = r.zoom == null ? 1 : Number(r.zoom);
+  const nx = nearestStep(CROP_STEPS, r.crop_x == null ? 0.5 : Number(r.crop_x));
+  const ny = nearestStep(CROPY_STEPS, r.crop_y == null ? 0.5 : Number(r.crop_y));
 
   return `<div class="shape" id="shapeCard" data-reel="${r.id}">
     <h4 class="small muted" style="margin:16px 0 8px">영상 모양</h4>
     <div class="tabs shapes">${all.map((t) => `<button data-shape="${t.id}" class="${t.id === current ? 'on' : ''}" title="${esc(t.description ?? '')}">${esc(t.name ?? ko('template', t.id) ?? t.id)}</button>`).join('')}</div>
     <p class="small muted" id="shapeDesc">${esc(sel.description ?? '')}</p>
-    <div class="fld inline" id="cropRow" ${sel.crops ? '' : 'hidden'}>
-      <label for="cropX">좌우 위치 <span class="muted" id="cropLabel">${esc(nearest.label)}</span></label>
-      <input type="range" id="cropX" min="0" max="4" step="1" value="${CROP_STEPS.indexOf(nearest)}">
-      <span class="fhelp">잘라낼 때 어느 쪽을 남길지 고릅니다. 움직여도 바로 만들지 않습니다.</span>
+
+    <div class="fld inline" id="zoomRow" ${sel.crops ? '' : 'hidden'}>
+      <label for="zoomX">확대 <span class="muted" id="zoomLabel">${zoom.toFixed(1)}배</span></label>
+      <input type="range" id="zoomX" min="10" max="25" step="1" value="${Math.round(zoom * 10)}">
     </div>
-    <div class="actions"><button class="btn" id="reshapeBtn">이 모양으로 다시 만들기</button></div>
+    <div class="fld inline" id="cropRow" ${sel.crops ? '' : 'hidden'}>
+      <label for="cropX">좌우 <span class="muted" id="cropLabel">${esc(nx.label)}</span></label>
+      <input type="range" id="cropX" min="0" max="4" step="1" value="${CROP_STEPS.indexOf(nx)}">
+    </div>
+    <div class="fld inline" id="cropYRow" ${sel.crops && zoom > 1 ? '' : 'hidden'}>
+      <label for="cropY">위아래 <span class="muted" id="cropYLabel">${esc(ny.label)}</span></label>
+      <input type="range" id="cropY" min="0" max="4" step="1" value="${CROPY_STEPS.indexOf(ny)}">
+      <span class="fhelp">확대했을 때만 쓸 수 있습니다.</span>
+    </div>
+
+    <div class="cropPreview" id="cropPreview" ${sel.crops ? '' : 'hidden'}>
+      <img id="cropImg" alt="미리보기">
+      <p class="small muted">슬라이더를 움직이면 여기 그림만 바뀝니다. 영상은 아래 버튼을 눌러야 만들어집니다.</p>
+    </div>
+
+    <div class="actions"><button class="btn" id="reshapeBtn">이 모양으로 영상 만들기</button></div>
     <div class="upstate" id="shapeState"></div></div>`;
 }
 
-/** Picking a shape only changes the pending choice; the button is what starts a render. */
+/**
+ * Aiming the crop. Moving a slider redraws one still frame and nothing else — the full render takes
+ * tens of seconds, so it happens only when the button is pressed.
+ */
 function wireShape(d) {
   const card = $('#shapeCard');
   if (!card) return;
   const all = (state.overview?.templates ?? []).filter((t) => t.format === d.reel.output_format);
   let chosen = d.reel.template_id ?? all[0]?.id;
+  const crops = () => Boolean(all.find((t) => t.id === chosen)?.crops);
+  const framing = () => ({
+    zoom: Number($('#zoomX')?.value ?? 10) / 10,
+    cropX: CROP_STEPS[Number($('#cropX')?.value ?? 2)].v,
+    cropY: CROPY_STEPS[Number($('#cropY')?.value ?? 2)].v,
+  });
+
+  // The slider fires on every pixel of travel; only the last position in 150ms is worth a frame.
+  let timer = null, seq = 0;
+  const refreshPreview = () => {
+    if (!crops()) { $('#cropPreview').hidden = true; return; }
+    $('#cropPreview').hidden = false;
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const mine = ++seq;
+      const f = framing();
+      const q = `template=${encodeURIComponent(chosen)}&cropX=${f.cropX}&cropY=${f.cropY}&zoom=${f.zoom}`;
+      try {
+        const r = await fetch(`/api/reel/${d.reel.id}/crop-preview?${q}`);
+        if (!r.ok || mine !== seq) return;          // a newer move already won
+        const blob = await r.blob();
+        if (mine !== seq) return;
+        const img = $('#cropImg');
+        if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+        img.dataset.url = URL.createObjectURL(blob);
+        img.src = img.dataset.url;
+      } catch { /* a preview that fails to load is not worth interrupting the operator for */ }
+    }, 150);
+  };
 
   card.querySelectorAll('[data-shape]').forEach((b) => b.addEventListener('click', () => {
     chosen = b.dataset.shape;
     card.querySelectorAll('[data-shape]').forEach((x) => x.classList.toggle('on', x === b));
     const t = all.find((x) => x.id === chosen);
     $('#shapeDesc').textContent = t?.description ?? '';
-    $('#cropRow').hidden = !t?.crops;
+    for (const id of ['#zoomRow', '#cropRow']) $(id).hidden = !t?.crops;
+    $('#cropYRow').hidden = !t?.crops || framing().zoom <= 1;
+    refreshPreview();
   }));
 
-  const slider = $('#cropX');
-  if (slider) slider.addEventListener('input', () => { $('#cropLabel').textContent = CROP_STEPS[Number(slider.value)].label; });
+  const onSlide = (id, labelId, steps) => {
+    const el = $(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      if (steps) $(labelId).textContent = steps[Number(el.value)].label;
+      else {
+        $(labelId).textContent = `${(Number(el.value) / 10).toFixed(1)}배`;
+        $('#cropYRow').hidden = !crops() || Number(el.value) <= 10;   // up/down only matters when zoomed
+      }
+      refreshPreview();
+    });
+  };
+  onSlide('#zoomX', '#zoomLabel', null);
+  onSlide('#cropX', '#cropLabel', CROP_STEPS);
+  onSlide('#cropY', '#cropYLabel', CROPY_STEPS);
+  refreshPreview();
 
   $('#reshapeBtn').addEventListener('click', async () => {
     const btn = $('#reshapeBtn');
@@ -298,7 +388,7 @@ function wireShape(d) {
     try {
       const r = await api(`/api/reel/${d.reel.id}/template`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: chosen, cropX: CROP_STEPS[Number(slider?.value ?? 2)].v }),
+        body: JSON.stringify({ template_id: chosen, ...framing() }),
       });
       if (r.render_status !== 'done') throw new Error(r.render_error || `영상 제작이 ${ko('renderStatus', r.render_status)} 상태입니다`);
       notice(`${ko('template', r.template_id) || r.template_id} 모양으로 다시 만들었습니다. 같은 릴스 #${r.reel_id}이고, 다시 고르지 않았습니다.`);
@@ -346,7 +436,7 @@ async function showDay(date) {
   let d;
   try { d = await api(`/api/day/${date}`); } catch (e) {
     $('#detail').innerHTML = `<section class="empty"><h1>${date}</h1>
-      <p>이 날짜는 아직 실행하지 않았습니다. 위에서 날짜를 ${date}로 맞추고 <b>파이프라인 실행</b>을 누르면 선곡부터 영상까지 한 번에 진행됩니다.</p></section>`;
+      <p>이 날짜는 아직 실행하지 않았습니다. 왼쪽 <b>운영 기록</b>에서 날짜를 ${date}로 맞추고 <b>오늘의 추천 받기</b>를 누르면 선곡부터 영상까지 한 번에 진행됩니다.</p></section>`;
     return;
   }
   const root = $('#detail');
@@ -354,7 +444,10 @@ async function showDay(date) {
   root.append($('#tplDay').content.cloneNode(true));
   const ref = (n) => root.querySelector(`[data-ref="${n}"]`);
   ref('flow').innerHTML = flowSteps(d).map(([t, cls, v]) => `<div class="step ${cls}"><b>${t}</b>${esc(v)}</div>`).join('');
-  ref('candTable').innerHTML = candTable(d);
+  // Comparison and score moved to the left: they are the record of why, not something to read daily.
+  const sideCands = $('#sideCands');
+  if (sideCands) sideCands.innerHTML = `<div class="table-wrap"><table class="cands">${candTable(d)}</table></div>`;
+  $('#ruleVer').textContent = `· 선곡 규칙 ${d.selection.rule_version}`;
   const s = d.selection;
 
   if (s.status === 'skipped') {
@@ -362,7 +455,6 @@ async function showDay(date) {
       <div class="skipbox">${esc(s.skip_reason_ko ?? s.skip_reason)}</div>`;
     ['rightsCard', 'segCard', 'jobCard', 'previewCard', 'captionCard'].forEach((n) => ref(n).remove());
     root.querySelector('.cols').style.gridTemplateColumns = '1fr';
-    ref('ruleVer').textContent = `· 선곡 규칙 ${d.selection.rule_version}`;
     return;
   }
 
@@ -371,10 +463,10 @@ async function showDay(date) {
     <p style="margin:0"><b style="font-size:17px">${esc(d.candidate.performer_en)} – ${esc(d.candidate.title_en)}</b>
       <span class="muted">${esc(d.candidate.performer_ko ?? '')} ${d.candidate.title_ko ? `– ${esc(d.candidate.title_ko)}` : ''}</span></p>
     <p class="small muted" style="margin:4px 0 0">${esc(d.candidate.program_name ?? '')} · 공식 공개 ${esc(TERMS.day(d.candidate.published_at))}</p>
+    ${videoLink(d.candidate.id)}
     <div class="reason">${esc(s.reason_ko ?? s.reason)}</div>
     <details style="margin-top:10px"><summary class="small muted">점수를 어떻게 매겼는지 보기</summary>${scoreHtml(s.score_breakdown.items)}
       <p class="small muted" style="margin-top:8px">선곡 규칙 ${esc(s.rule_version)} · 후보 식별자 ${esc(d.candidate.candidate_key)}</p></details>`;
-  ref('ruleVer').textContent = '';
   ref('rightsCard').innerHTML = rightsCard(d);
   ref('segCard').innerHTML = segCard(d);
   root.querySelectorAll('[data-approve],[data-reject]').forEach((b) => b.addEventListener('click', async () => {

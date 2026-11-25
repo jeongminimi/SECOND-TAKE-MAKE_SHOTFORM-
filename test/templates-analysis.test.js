@@ -26,11 +26,11 @@ test('templates: all JSON templates load and rotate deterministically by date', 
   const b = pickTemplate(cfg, 'original_graphic', '2026-11-16');
   assert.notEqual(a, b);                                            // consecutive days alternate
   assert.equal(pickTemplate(cfg, 'original_graphic', '2026-11-15'), a); // deterministic
-  // The three new clip shapes exist to be chosen by hand. They are deliberately NOT in the rotation,
-  // so an automatic run still produces the letterboxed shape it always did.
-  assert.deepEqual(cfg.render.templates.licensed_clip, ['clip-standard']);
-  assert.equal(pickTemplate(cfg, 'licensed_clip', '2026-11-23'), 'clip-standard');
-  assert.equal(pickTemplate(cfg, 'licensed_clip', '2026-11-24'), 'clip-standard');
+  // One shape is the automatic one; the rest are chosen by hand. clip-standard fills only a third of
+  // the frame, so clip-large is what an unattended run produces now.
+  assert.deepEqual(cfg.render.templates.licensed_clip, ['clip-large']);
+  assert.equal(pickTemplate(cfg, 'licensed_clip', '2026-11-23'), 'clip-large');
+  assert.equal(pickTemplate(cfg, 'licensed_clip', '2026-11-24'), 'clip-large');
 });
 
 test('templates: both graphic templates render a valid 1080x1920 MP4', async (t) => {

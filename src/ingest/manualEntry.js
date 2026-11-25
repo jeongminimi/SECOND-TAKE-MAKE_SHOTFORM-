@@ -15,6 +15,7 @@ const { tx } = require('../db');
 const { toStoredPath } = require('../config');
 const V = require('./validate');
 const { parseTimecode } = require('../util/time');
+const { suggestFromFilename } = require('./youtubeUrl');
 
 /**
  * Identifiers are the program's business, not the operator's. They are built from the names that
@@ -87,7 +88,21 @@ function saveChannel(db, d) {
   });
 }
 
+/**
+ * A video registered from a file with no link still needs something in the key the table dedupes on.
+ * Leaving it blank is what the task asked for, but (platform, platform_video_id) is UNIQUE and the
+ * INSERT upserts on it: the second link-less video would overwrite the first. So a local row gets a
+ * key derived from its own title, and `platform: 'local'` keeps it from reading as a platform id.
+ */
+function localVideoKey(db, d) {
+  if (d.id) return d.platform_video_id ?? null;
+  return uniqueKey(db, 'source_videos', 'platform_video_id', `file-${slug(d.title)}`);
+}
+
 function saveVideo(db, d) {
+  if (String(d.platform ?? '').toLowerCase() === 'local') {
+    d = { ...d, official_url: d.official_url ?? '', platform_video_id: d.platform_video_id || localVideoKey(db, d) };
+  }
   const issues = V.validateVideo(d);
   V.assertValid(issues);
   return tx(db, () => {
@@ -154,16 +169,17 @@ function saveCandidate(db, d) {
       str(d.performance_type), JSON.stringify(tags), str(d.version_evidence),
       shaped.segment_start_sec, shaped.segment_end_sec, str(d.segment_evidence),
       str(d.why_watch_en), str(d.why_watch_evidence), str(d.occasion_note), str(d.occasion_date), str(d.occasion_evidence),
-      JSON.stringify(cues), str(d.judgement_notes), bool(d.is_active, 1),
+      JSON.stringify(cues), str(d.judgement_notes), str(d.extra_hashtags), bool(d.is_active, 1),
     ];
     const row = d.id
       ? db.prepare(`UPDATE performance_candidates SET candidate_key = ?, source_video_id = ?, track_id = ?, performer_en = ?, performer_ko = ?,
                       program_name = ?, performance_type = ?, arrangement_tags = ?, version_evidence = ?, segment_start_sec = ?, segment_end_sec = ?,
                       segment_evidence = ?, why_watch_en = ?, why_watch_evidence = ?, occasion_note = ?, occasion_date = ?, occasion_evidence = ?,
-                      watch_cues = ?, judgement_notes = ?, is_active = ? WHERE id = ? RETURNING *`).get(...vals, d.id)
+                      watch_cues = ?, judgement_notes = ?, extra_hashtags = ?, is_active = ? WHERE id = ? RETURNING *`).get(...vals, d.id)
       : db.prepare(`INSERT INTO performance_candidates (candidate_key, source_video_id, track_id, performer_en, performer_ko, program_name,
                       performance_type, arrangement_tags, version_evidence, segment_start_sec, segment_end_sec, segment_evidence,
-                      why_watch_en, why_watch_evidence, occasion_note, occasion_date, occasion_evidence, watch_cues, judgement_notes, is_active)
+                      why_watch_en, why_watch_evidence, occasion_note, occasion_date, occasion_evidence, watch_cues, judgement_notes,
+                      extra_hashtags, is_active)
                     VALUES (${vals.map(() => '?').join(', ')})
                     ON CONFLICT (candidate_key) DO UPDATE SET source_video_id = excluded.source_video_id, track_id = excluded.track_id,
                       performer_en = excluded.performer_en, performer_ko = excluded.performer_ko, program_name = excluded.program_name,
@@ -171,7 +187,7 @@ function saveCandidate(db, d) {
                       segment_start_sec = excluded.segment_start_sec, segment_end_sec = excluded.segment_end_sec, segment_evidence = excluded.segment_evidence,
                       why_watch_en = excluded.why_watch_en, why_watch_evidence = excluded.why_watch_evidence, occasion_note = excluded.occasion_note,
                       occasion_date = excluded.occasion_date, occasion_evidence = excluded.occasion_evidence, watch_cues = excluded.watch_cues,
-                      judgement_notes = excluded.judgement_notes, is_active = excluded.is_active
+                      judgement_notes = excluded.judgement_notes, extra_hashtags = excluded.extra_hashtags, is_active = excluded.is_active
                     RETURNING *`).get(...vals);
     if (!row) throw new Error(`candidate ${d.id} not found`);
     return saved(row, issues);
@@ -293,6 +309,38 @@ function uniquePath(dir, name) {
 }
 
 /** Stores an uploaded clip and returns the project-relative path the database records. */
+const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.webm']);
+
+/**
+ * The video files the operator has already put in storage/video, newest first.
+ *
+ * The point is that a file sitting in that folder should not have to be uploaded into the same folder
+ * through a browser to be usable. Read-only: it lists what is there and never fetches, moves or
+ * records anything. `file_ref` is produced by the same toStoredPath() that storeClipFile() uses, so a
+ * value from here can be sent straight to saveClipAsset.
+ *
+ * Only the folder itself is read — no recursion, no symlink following, nothing outside it.
+ * Duration is deliberately absent: probing 30 files would make the list take seconds to appear.
+ *
+ * Each entry carries what its name can be read as (`suggested`), so picking a file fills the form in.
+ * A name that does not parse gets an empty object: the download tool's naming is not a source.
+ */
+function listVideoFiles(cfg) {
+  const dir = cfg.resolved.video;
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
+    .map((e) => {
+      const full = path.join(dir, e.name);
+      const st = fs.statSync(full);
+      return {
+        file_ref: toStoredPath(cfg, full), name: e.name, bytes: st.size, mtime: st.mtime.toISOString(),
+        suggested: suggestFromFilename(e.name),
+      };
+    })
+    .sort((a, b) => (a.mtime < b.mtime ? 1 : a.mtime > b.mtime ? -1 : a.name.localeCompare(b.name)));
+}
+
 function storeClipFile(cfg, filename, buffer) {
   fs.mkdirSync(cfg.resolved.clips, { recursive: true });
   const target = uniquePath(cfg.resolved.clips, safeName(filename, 'clip.mp4'));
@@ -313,5 +361,5 @@ function storeEvidenceFile(cfg, filename, buffer) {
 
 module.exports = {
   saveChannel, saveVideo, saveTrack, saveCandidate, saveClipAsset, savePermission, setActive, setCandidateSegment,
-  storeClipFile, storeEvidenceFile, safeName, slug, uniqueKey,
+  storeClipFile, storeEvidenceFile, listVideoFiles, safeName, slug, uniqueKey,
 };

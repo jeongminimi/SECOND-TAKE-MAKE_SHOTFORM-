@@ -158,3 +158,49 @@ details.advanced[open] { padding-bottom: 2px; }
 .tabs.shapes { flex-wrap: wrap; }
 .shape .fld.inline { display: block; margin-top: 10px; }
 .shape input[type=range] { width: 100%; max-width: 320px; display: block; margin: 6px 0; }
+
+/* Crop preview: one still frame, shown at a size that still tells you what gets cut. */
+.cropPreview { margin-top: 12px; }
+.cropPreview img { width: 190px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 10px; background: #15151b; display: block; }
+
+/* ── 5-4 layout: the main column is the four steps; everything else folds away on the left ─────── */
+.topNote { margin: 0; font-size: 12px; color: #c9c9d2; }
+.side { display: grid; gap: 10px; align-content: start; }
+.sideBlock { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.sideBlock > summary { cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: .5px; color: var(--muted); text-transform: uppercase; }
+.sideBlock[open] > summary { margin-bottom: 10px; }
+.sideBlock ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.sideBlock li button { width: 100%; text-align: left; background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 9px; cursor: pointer; display: grid; gap: 2px; }
+.sideBlock li button.active { border-color: var(--ink); box-shadow: inset 3px 0 0 var(--accent); }
+.sideBlock .d { font-family: var(--mono); font-size: 12px; }
+.sideBlock .t { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sideBlock .run { display: grid; gap: 8px; margin-bottom: 10px; }
+.sideBlock .run label { color: var(--muted); }
+.sideBlock .run input[type=date] { background: #fff; color: var(--ink); border-color: var(--line); }
+.sideBlock .scenarios { padding: 0 0 10px; }
+.sideBlock .cands { font-size: 11px; }
+.mainCol { display: grid; gap: 16px; align-content: start; min-width: 0; }
+
+/* Only the step being worked on is at full strength; the next one waits. */
+.step h2 { display: flex; align-items: center; gap: 10px; font-size: 17px; margin: 0 0 14px; }
+.step h2 .n { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 13px; }
+.step.dim { opacity: .5; }
+.step .row { display: flex; gap: 8px; align-items: center; }
+.step .row input[type=url] { flex: 1; }
+.step .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.step select, .step input[type=text], .step input[type=url], .step input[type=date] { padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; width: 100%; background: #fff; }
+.picked { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+.picked .thumb { width: 160px; border-radius: 8px; display: block; }
+.pickedTitle { margin: 0 0 4px; font-weight: 700; }
+.autofill { font-size: 11px; font-weight: 700; color: var(--warn); background: #fdefd6; border-radius: 999px; padding: 2px 8px; margin-left: 6px; }
+.warnbox { background: #fdefd6; border-radius: 8px; padding: 10px 12px; font-size: 13px; margin: 0 0 12px; }
+.opt { font-weight: 400; color: var(--muted); font-size: 12px; }
+.check.big { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.5; background: #f7f7f4; border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; margin: 12px 0; }
+.check.big input { margin-top: 3px; }
+.tagRow { display: flex; flex-wrap: wrap; gap: 10px; }
+.tagRow .check { font-size: 12px; display: flex; gap: 5px; align-items: center; }
+.ylink { display: inline-flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--info); text-decoration: none; }
+.ylink:hover { text-decoration: underline; }
+.ythumb { width: 104px; border-radius: 6px; display: block; background: #e9e9ee; }
+.col-main .ylink { flex-direction: row; align-items: center; gap: 10px; margin: 8px 0; font-size: 12px; }
+.col-main .ythumb { width: 120px; }

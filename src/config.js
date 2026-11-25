@@ -26,6 +26,10 @@ function loadConfig(overrides = {}) {
     output: abs(cfg.paths.output),
     testAssets: abs(cfg.paths.testAssets),
     clips: abs(cfg.paths.clips ?? 'storage/clips'),
+    // Where the operator drops video files by hand. The program only ever lists and reads from it —
+    // nothing is downloaded into it, and the screen offers its contents instead of making someone
+    // upload a file that is already sitting there.
+    video: abs(cfg.paths.video ?? 'storage/video'),
     evidence: abs(cfg.paths.evidence),
   };
   return cfg;

@@ -1,8 +1,8 @@
 {
   "id": "graphic-sequence",
   "format": "original_graphic",
-  "name": "Three-beat sequence",
-  "description": "Hook → why → where to watch. The screen changes every ~2.7s so a silent graphic does not sit still.",
+  "name": "3장면 전환형",
+  "description": "제목 → 왜 볼 만한지 → 어디서 보는지 순서로 약 2.7초마다 화면이 바뀝니다. 소리가 없는 그래픽 영상이 멈춰 보이지 않게 합니다.",
   "progressBar": true,
   "elements": [
     { "type": "text", "bind": "brand", "size": 34, "color": "accent", "y": 120 },

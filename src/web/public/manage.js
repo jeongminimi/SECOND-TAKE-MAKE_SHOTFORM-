@@ -159,6 +159,7 @@ const STEP_FIELDS = {
     { name: 'occasion_note', label: '지금 소개할 이유 (선택)', help: '예: 공식 10주년. 적으면 근거가 필요합니다.' },
     { name: 'occasion_date', label: '↳ 해당 날짜', type: 'date' },
     { name: 'occasion_evidence', label: '↳ 그 이유의 근거', evidence: true },
+    { name: 'extra_hashtags', label: '해시태그 직접 추가 (선택)', placeholder: '#kpop #seventeen', help: '공연자·곡명으로 만든 태그 뒤에 그대로 붙습니다. 저장해 두면 이 후보로 다시 만들 때도 쓰입니다.' },
     { name: 'judgement_notes', label: '운영 메모 (선택)', type: 'textarea', help: '어떻게 확인했는지 남겨 두면 나중에 판단을 되짚을 수 있습니다.' },
   ],
 };
@@ -371,10 +372,21 @@ function renderSteps() {
     <span class="d">단계 ${s.n}</span><span>${esc(s.label)}</span><span class="t">${esc(s.hint)}</span></button></li>`).join('');
 }
 
+/** Hands the main area to 자료 손보기, or back to the make-a-reel flow. */
+function showManage(on) {
+  $('#managePanel').hidden = !on;
+  for (const id of ['#stepPick', '#stepClip', '#detail']) {
+    const el = $(id);
+    if (el) el.hidden = on ? true : (id === '#stepClip' ? !cstate?.lookup : false);
+  }
+}
+
 async function renderManage() {
   if (!mstate.lists) await loadLists();
   renderSteps();
-  $('#managePanel').innerHTML = RENDER[mstate.step](mstate.lists);
+  $('#managePanel').innerHTML = `<div class="actions" style="margin-bottom:12px">
+      <button class="btn ghost" id="manageClose" type="button">← 영상 만들기로 돌아가기</button></div>`
+    + RENDER[mstate.step](mstate.lists);
 }
 
 async function refreshPreview(candidateId) {
@@ -498,18 +510,13 @@ function captureCandidateForm(form) {
 }
 
 document.addEventListener('click', async (e) => {
-  const tab = e.target.closest('.view-tab');
-  if (tab) {
-    document.querySelectorAll('.view-tab').forEach((b) => b.classList.toggle('on', b === tab));
-    const manage = tab.dataset.view === 'manage';
-    $('#viewOperate').hidden = manage;
-    $('#viewManage').hidden = !manage;
-    $('#runForm').style.visibility = manage ? 'hidden' : '';
-    if (manage) await renderManage();
-    return;
-  }
+  // 자료 손보기 lives in the left column now. Opening a step takes over the main area; closing it
+  // gives the main area back to the make-a-reel flow, which is what the screen is normally for.
+  const backToFlow = e.target.closest('#manageClose');
+  if (backToFlow) { showManage(false); return; }
+
   const step = e.target.closest('[data-step]');
-  if (step) { mstate.step = step.dataset.step; mstate.edit = {}; mstate.upload = {}; mstate.draftCues = []; await renderManage(); return; }
+  if (step) { mstate.step = step.dataset.step; mstate.edit = {}; mstate.upload = {}; mstate.draftCues = []; showManage(true); await renderManage(); return; }
 
   const addCue = e.target.closest('#addCue');
   if (addCue) {

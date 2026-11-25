@@ -1,4 +1,6 @@
 'use strict';
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 let express;
 try { express = require('express'); } catch { express = require('./mini-express'); }
@@ -15,12 +17,20 @@ const { SEED } = require('../cli');
 const { analyzeAssets, approveSuggestion, rejectSuggestion, suggestionsForCandidate } = require('../analysis/structure');
 const { exportReel } = require('../export/exportReel');
 const { loadTemplate, listTemplates } = require('../render/templateEngine');
+const { renderReel, ZOOM_MIN, ZOOM_MAX } = require('../render/renderReel');
+const { buildCopy } = require('../copy/templates');
+const { lookupYoutube, findVideoFile, suggestFromFilename } = require('../ingest/youtubeUrl');
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-function createApp(cfg, db) {
-  const app = express();
-  app.use(express.json());
+/**
+ * @param impl the server implementation to build on. Defaults to Express when installed and to
+ *   mini-express otherwise; a test passes mini-express explicitly to exercise that path on a machine
+ *   where Express IS installed, because that is the only way it gets covered.
+ */
+function createApp(cfg, db, impl = express) {
+  const app = impl();
+  app.use(impl.json());
   let queue = Promise.resolve();
   const serial = (fn) => (queue = queue.then(fn, fn));
 
@@ -53,7 +63,7 @@ function createApp(cfg, db) {
     }));
     res.json({ account: cfg.account, timezone: cfg.timezone, publishLocalTime: cfg.publish.localTime, ruleVersion: cfg.selection.ruleVersion,
       weights: cfg.selection.weights, today: todayIn(cfg.timezone), scenarioDates, selections, templates,
-      expressFallback: Boolean(express.isFallback) });
+      expressFallback: Boolean(impl.isFallback) });
   });
 
   app.get('/api/day/:date', (req, res) => {
@@ -89,9 +99,54 @@ function createApp(cfg, db) {
     }
   });
 
+  /** Framing from a request, falling back to what the reel already has. A blank field is "unchanged". */
+  const framingFrom = (src, reel) => {
+    const num = (v, col, lo, hi) => {
+      if (v == null || v === '') return reel?.[col] ?? null;
+      const n = Number(v);
+      if (!Number.isFinite(n)) throw new Error(`${col} must be a number`);
+      return Math.min(hi, Math.max(lo, n));
+    };
+    return {
+      cropX: num(src.cropX, 'crop_x', 0, 1),
+      cropY: num(src.cropY, 'crop_y', 0, 1),
+      zoom: num(src.zoom, 'zoom', ZOOM_MIN, ZOOM_MAX),
+    };
+  };
+
   /**
-   * Re-frames one finished reel: a different template, or a different left/right crop, rendered onto
-   * the SAME reel row. The day is not selected again — only the picture changes.
+   * One frame of what the full render would produce, so the operator can aim the crop without waiting
+   * tens of seconds for a video. Same template, same scrims, same text — just stopped after a frame.
+   * Writes nothing to the database and leaves no file behind.
+   */
+  app.get('/api/reel/:id/crop-preview', async (req, res) => {
+    let dir = null;
+    try {
+      const reel = db.prepare('SELECT * FROM reels WHERE id = ?').get(Number(req.params.id));
+      if (!reel) throw new Error(`reel ${req.params.id} not found`);
+      const sel = db.prepare('SELECT * FROM daily_selections WHERE id = ?').get(reel.selection_id);
+      const cand = loadCandidate(db, sel.candidate_id);
+      const clip = reel.clip_asset_id ? loadClipAssets(db, cand.id).find((a) => a.id === reel.clip_asset_id) : null;
+      const copy = buildCopy(cand, { format: reel.output_format, clipAsset: clip, account: cfg.account });
+
+      dir = fs.mkdtempSync(path.join(os.tmpdir(), 'crop-preview-'));
+      const out = await serial(() => renderReel({
+        cfg, reel, copy, clipAsset: clip, operatingDate: sel.operating_date,
+        templateId: req.query.template || reel.template_id || undefined,
+        framing: framingFrom(req.query, reel),
+        previewDir: dir,
+      }));
+      res.type('jpeg').set('Cache-Control', 'no-store').send(fs.readFileSync(out.previewPath));
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    } finally {
+      if (dir) fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * Re-frames one finished reel: a different template, or a different crop, rendered onto the SAME
+   * reel row. The day is not selected again — only the picture changes.
    */
   app.post('/api/reel/:id/template', async (req, res) => {
     try {
@@ -103,16 +158,15 @@ function createApp(cfg, db) {
       if (tpl.format !== reel.output_format) {
         throw new Error(`Template ${id} is for ${tpl.format}, but reel ${reel.id} is ${reel.output_format}`);
       }
-      const raw = req.body?.cropX;
-      const cropX = raw == null || raw === '' ? reel.crop_x : Math.min(1, Math.max(0, Number(raw)));
-      if (cropX != null && !Number.isFinite(cropX)) throw new Error('cropX must be a number between 0 and 1');
+      const f = framingFrom(req.body ?? {}, reel);
 
       const date = db.prepare('SELECT ds.operating_date d FROM reels r JOIN daily_selections ds ON ds.id = r.selection_id WHERE r.id = ?').get(reel.id).d;
-      db.prepare(`UPDATE reels SET template_id = ?, crop_x = ?, render_status = 'pending',
-                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?`).run(id, cropX, reel.id);
+      db.prepare(`UPDATE reels SET template_id = ?, crop_x = ?, crop_y = ?, zoom = ?, render_status = 'pending',
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?`).run(id, f.cropX, f.cropY, f.zoom, reel.id);
       const r = await serial(() => runDay(db, cfg, date));
       res.json({
-        ok: true, date, reel_id: r.reel.id, template_id: r.reel.template_id, crop_x: cropX,
+        ok: true, date, reel_id: r.reel.id, template_id: r.reel.template_id,
+        crop_x: f.cropX, crop_y: f.cropY, zoom: f.zoom,
         render_status: r.reel.render_status, render_error: r.reel.render_error ?? null,
       });
     } catch (e) {
@@ -219,6 +273,38 @@ function createApp(cfg, db) {
   app.post('/api/entry/clip-asset', (req, res) => handleSaveAndRerender(res, () => entry.saveClipAsset(db, cfg, req.body ?? {})));
   app.post('/api/entry/permission', (req, res) => handleSave(res, () => entry.savePermission(db, req.body ?? {})));
 
+  /**
+   * The video files already sitting in storage/video. The operator usually puts a file there first,
+   * so the screen offers that list rather than asking them to upload a file into the folder it is
+   * already in. Read-only, and it never looks outside that one folder.
+   */
+  app.get('/api/entry/video-files', (req, res) => {
+    try { res.json({ ok: true, dir: 'storage/video', files: entry.listVideoFiles(cfg) }); }
+    catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  /**
+   * A pasted link, read back as a head start on the registration steps. Reads only: nothing is
+   * stored, nothing is downloaded, and every field it returns is a suggestion for the operator to
+   * confirm — saving still goes through the five endpoints below.
+   */
+  app.post('/api/entry/from-url', async (req, res) => {
+    try {
+      const look = await lookupYoutube(req.body?.url);
+      // Starting from a link is the side path: the file still has to be one the operator already has,
+      // so their folder is searched for it — by the video id in the file name, else by the title.
+      // Nothing is fetched when it is not there; the answer is "put it in the folder".
+      const hit = findVideoFile(entry.listVideoFiles(cfg), { videoId: look.video_id, title: look.title });
+      res.json({
+        ok: true,
+        ...look,
+        local_file: hit?.file ?? null,
+        local_match_by: hit?.by ?? null,
+        local_note: hit ? null : `이 영상이 storage/video 폴더에 없습니다. 받아서 폴더에 넣어 주세요. 영상 번호: ${look.video_id}`,
+      });
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
   // Step 5 writes the moment and its source onto the candidate, so the caption may carry "▶ 1:23".
   app.post('/api/entry/segment', (req, res) => handleSaveAndRerender(res, () => entry.setCandidateSegment(db, {
     candidate_id: Number(req.body?.candidate_id),
@@ -260,7 +346,9 @@ function createApp(cfg, db) {
   const upload = (maxBytes, store) => async (req, res) => {
     try {
       const buf = await readRawBody(req, maxBytes);
-      res.json({ ok: true, ...store(cfg, req.query?.name, buf) });
+      // An uploaded file's name reads the same way a file already in the folder does, so the form
+      // gets the same head start either way. It is a suggestion, like every other one.
+      res.json({ ok: true, suggested: suggestFromFilename(req.query?.name), ...store(cfg, req.query?.name, buf) });
     } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   };
   app.post('/api/entry/upload/clip', upload(1024 * MB, entry.storeClipFile));
@@ -269,8 +357,8 @@ function createApp(cfg, db) {
   // The screens load the very same dictionary file the server uses, so the two can never drift.
   app.get('/terms.js', (req, res) => res.type('js').sendFile(path.join(__dirname, '..', 'util', 'terms.js')));
 
-  app.use('/output', express.static(cfg.resolved.output));
-  app.use('/', express.static(path.join(__dirname, 'public')));
+  app.use('/output', impl.static(cfg.resolved.output));
+  app.use('/', impl.static(path.join(__dirname, 'public')));
   return app;
 }
 

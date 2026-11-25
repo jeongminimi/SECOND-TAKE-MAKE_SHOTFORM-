@@ -33,8 +33,12 @@ test('video: clip-standard renders exactly as before — full width, original ra
 
   const { db, cfg: env, ffmpeg } = await makeEnv();
   if (!ffmpeg) return t.skip('FFmpeg not available');
+  // clip-standard is no longer what an automatic run picks, so it is asked for by name here. What is
+  // being checked is that the shape itself still renders the way it always did.
+  const first = await runDay(db, env, CLIP_DATE);
+  db.prepare("UPDATE reels SET template_id = 'clip-standard', render_status = 'pending' WHERE id = ?").run(first.reel.id);
   const r = await runDay(db, env, CLIP_DATE);
-  assert.equal(r.reel.template_id, 'clip-standard', 'and it is still the default');
+  assert.equal(r.reel.template_id, 'clip-standard');
   assert.equal(r.reel.render_status, 'done', r.reel.render_error);
   const written = fs.readFileSync(path.join(env.resolved.output, 'reels', CLIP_DATE, `reel-${r.reel.id}`, 'filter.txt'), 'utf8');
   assert.match(written, /scale=1080:-2:force_original_aspect_ratio=decrease/);
@@ -186,7 +190,7 @@ test('video: re-shaping a reel rebuilds the same row, and a wrong template is re
 
     // the refusals changed nothing
     const untouched = db.prepare('SELECT template_id, render_status FROM reels WHERE id = ?').get(first.reel.id);
-    assert.equal(untouched.template_id, 'clip-standard');
+    assert.equal(untouched.template_id, 'clip-large', 'the shape an automatic run picked');
     assert.equal(untouched.render_status, 'done');
 
     const ok = await post({ template_id: 'clip-full', cropX: 1 });

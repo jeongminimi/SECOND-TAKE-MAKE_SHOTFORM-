@@ -1,8 +1,8 @@
 {
   "id": "graphic-classic",
   "format": "original_graphic",
-  "name": "Classic card",
-  "description": "Everything on one card; elements fade in once. Calm, readable.",
+  "name": "한 장 카드형",
+  "description": "모든 내용을 한 화면에 담고, 글씨가 한 번씩 부드럽게 나타납니다. 조용하고 읽기 쉽습니다. 클립을 쓸 수 없을 때 만드는 자체 그래픽 영상입니다.",
   "progressBar": true,
   "elements": [
     { "type": "text", "bind": "brand", "size": 34, "color": "accent", "y": 120 },
