@@ -32,6 +32,8 @@ async function api(path, opts) {
     // the English message threw that away, so it travels on the error and the caller decides.
     const err = new Error(j.error || r.statusText);
     err.issues = j.issues ?? null;
+    err.error_ko = j.error_ko ?? null; // a refusal that is about the whole request, not one field
+    err.code = j.code ?? null;
     throw err;
   }
   return j;

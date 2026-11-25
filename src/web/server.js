@@ -20,6 +20,8 @@ const { loadTemplate, listTemplates } = require('../render/templateEngine');
 const { renderReel, ZOOM_MIN, ZOOM_MAX } = require('../render/renderReel');
 const { buildCopy } = require('../copy/templates');
 const { lookupYoutube, findVideoFile, suggestFromFilename } = require('../ingest/youtubeUrl');
+const { sourceForFile, WHERE_KO } = require('../ingest/videoSource');
+const { searchYoutube, hasApiKey } = require('../ingest/youtubeSearch');
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -279,8 +281,41 @@ function createApp(cfg, db, impl = express) {
    * already in. Read-only, and it never looks outside that one folder.
    */
   app.get('/api/entry/video-files', (req, res) => {
-    try { res.json({ ok: true, dir: 'storage/video', files: entry.listVideoFiles(cfg) }); }
-    catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+    try {
+      // `youtube_search` tells the screen which of the two ways of finding the link it can offer:
+      // the list of candidates in the page, or a search tab the operator looks through themselves.
+      res.json({ ok: true, dir: 'storage/video', files: entry.listVideoFiles(cfg), youtube_search: hasApiKey(cfg) });
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  /**
+   * The link a file already carries — in its name, in a text file beside it, or in its own metadata.
+   * Reading the container costs a process, so it is asked for one file at a time, when it is picked.
+   * What comes back is a suggestion: the screen confirms the id through oEmbed like any pasted link.
+   */
+  app.get('/api/entry/file-source', async (req, res) => {
+    try {
+      const file = fromStoredPath(cfg, String(req.query?.file_ref ?? ''));
+      // Only the two folders the program stores videos in, whatever the browser asked for.
+      const inside = [cfg.resolved.video, cfg.resolved.clips].some((dir) => !path.relative(dir, file).startsWith('..'));
+      if (!inside) throw new Error('이 프로그램이 다루는 영상 폴더 밖의 파일입니다.');
+      const found = await sourceForFile(cfg, file);
+      res.json({ ok: true, source: found, where_ko: found ? WHERE_KO[found.from] : null });
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  /**
+   * Candidates for a performance the operator has a file of, from the official Data API. Metadata
+   * only — there is no download here and the API offers none. Nothing is stored and nothing is
+   * chosen: the operator picks which video it is.
+   */
+  app.get('/api/entry/youtube-search', async (req, res) => {
+    try {
+      const r = await searchYoutube(req.query?.q, { cfg });
+      res.json({ ok: true, ...r });
+    } catch (e) {
+      res.status(e.code === 'no_api_key' ? 501 : 400).json({ ok: false, error: e.message, code: e.code ?? null, error_ko: e.ko ?? null });
+    }
   });
 
   /**

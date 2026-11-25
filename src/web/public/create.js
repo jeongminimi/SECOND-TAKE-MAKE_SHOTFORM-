@@ -20,7 +20,7 @@
  *    the program cannot know whether a title proves anything — or whether a channel is official.
  */
 
-const cstate = { lookup: null, fileRef: null, videoFiles: null, result: null, missing: [] };
+const cstate = { lookup: null, fileRef: null, videoFiles: null, result: null, missing: [], youtubeSearch: false, found: [] };
 
 const cEl = (id) => document.getElementById(id);
 const AUTO = '<span class="autofill">자동으로 채움 — 확인하세요</span>';
@@ -92,8 +92,13 @@ function step1Html() {
       <input type="url" id="ytUrl" placeholder="https://www.youtube.com/watch?v=...">
       <button class="btn ghost" id="ytFetch" type="button">가져오기</button>
     </div>
-    <span class="fhelp">「가져오기」까지 성공해야 등록됩니다 — 공식 제목과 채널 이름이 그때 들어옵니다. 손으로 고친 칸은 그대로 둡니다.
+    <span class="fhelp">주소를 붙여넣으면 바로 조회합니다 — 공식 제목과 채널 이름이 그때 들어옵니다. 손으로 고친 칸은 그대로 둡니다.
       영상을 내려받지는 않습니다.</span>
+    <div class="row" style="margin-top:8px">
+      <button class="btn ghost" id="ytPaste" type="button">복사한 주소 붙여넣기</button>
+      <button class="btn ghost" id="ytSearch" type="button">제목으로 찾기</button>
+    </div>
+    <div id="ytFound" hidden></div>
     <div id="ytResult" hidden></div>
   </div>
 
@@ -243,13 +248,32 @@ function openStep2() {
   s2.innerHTML = step2Html();
 }
 
-function pickFile(fileRef, { name = null, suggested = null } = {}) {
+function pickFile(fileRef, { name = null, suggested = null, readSource = true } = {}) {
   cstate.fileRef = fileRef || null;
   cEl('cFileState').textContent = cstate.fileRef ? `고른 영상: ${name ?? cstate.fileRef}` : '';
   if (!cstate.fileRef) { refreshSubmit(); return; }
   openStep2();
   if (suggested && Object.keys(suggested).length) applySuggestion(suggested);
   refreshSubmit();
+  if (readSource) readFileSource(cstate.fileRef);
+}
+
+/**
+ * Whether the file itself already says where it came from. Most download tools can keep the link in
+ * the file name, in a text file beside it, or in the video's own metadata — and then there is nothing
+ * to search for. It is still only a suggestion: the id goes through the same oEmbed lookup a pasted
+ * link does, and the operator still ticks 「출처가 공식 채널이 맞습니다」.
+ */
+async function readFileSource(fileRef) {
+  const state = cEl('cFileState');
+  try {
+    const r = await api(`/api/entry/file-source?file_ref=${encodeURIComponent(fileRef)}`);
+    if (!r.source || cstate.fileRef !== fileRef) return;
+    cEl('ytUrl').value = r.source.url;
+    state.textContent = `${state.textContent} · ${r.where_ko} — 주소를 확인하는 중…`;
+    await fetchUrl();
+    state.textContent = `${state.textContent.split(' · ')[0]} · ${r.where_ko}`;
+  } catch { /* nothing was found, or the lookup failed: the operator finds the link the usual way */ }
 }
 
 async function loadVideoFiles() {
@@ -258,6 +282,7 @@ async function loadVideoFiles() {
   try {
     const r = await api('/api/entry/video-files');
     cstate.videoFiles = r.files;
+    cstate.youtubeSearch = Boolean(r.youtube_search);
     sel.innerHTML = r.files.length
       ? `<option value="">폴더에 있는 영상에서 고르기…</option>${r.files.map((f) => `<option value="${esc(f.file_ref)}">${esc(f.name)} · ${size(f.bytes)}</option>`).join('')}`
       : '<option value="">폴더가 비어 있습니다 — 파일을 올리세요</option>';
@@ -299,6 +324,72 @@ async function fetchUrl() {
   } finally {
     btn.disabled = false; btn.textContent = was;
   }
+}
+
+/** What to search YouTube for: what the operator typed, else the file name as it was read. */
+function searchQuery() {
+  const parts = [val('cPerformer'), val('cTitle')].filter(Boolean);
+  if (parts.length) return parts.join(' ');
+  return fileByRef(cstate.fileRef)?.name?.replace(/\.[^.]+$/, '') ?? '';
+}
+
+/**
+ * Finding the link for a file, without leaving the page when that is possible.
+ *
+ * With an API key the official Data API returns a few candidates and the operator picks one. Without a
+ * key the same search opens in a YouTube tab — fewer steps than typing the title there by hand, and it
+ * needs no key, no quota and no account. Either way the program never decides which video it is.
+ */
+async function searchForFile() {
+  const q = searchQuery();
+  if (!q) { notice('먼저 영상 파일을 고르거나 공연자·곡명을 적어 주세요.', true); return; }
+  const host = cEl('ytFound');
+  if (!cstate.youtubeSearch) {
+    window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`, '_blank', 'noopener');
+    host.hidden = false;
+    host.innerHTML = `<p class="small muted">유튜브에서 「${esc(q)}」를 검색한 탭을 열었습니다. 맞는 영상의 주소를 복사해 위 칸에 붙여넣으세요.</p>`;
+    return;
+  }
+  host.hidden = false;
+  host.innerHTML = '<p class="small muted">유튜브에서 찾는 중…</p>';
+  try {
+    const r = await api(`/api/entry/youtube-search?q=${encodeURIComponent(q)}`);
+    cstate.found = r.items;
+    host.innerHTML = r.items.length ? `
+      <p class="small muted">이 중에 있나요? 누르면 그 영상의 주소가 들어갑니다. <b>프로그램은 고르지 않습니다.</b></p>
+      ${r.items.map((it, i) => `<button class="btn ghost found" type="button" data-found="${i}">
+        <img class="ythumb" src="${esc(it.thumbnail_url ?? '')}" alt="" onerror="this.remove()">
+        <span><b>${esc(it.title ?? '(제목 없음)')}</b><br>${esc(it.channel_name ?? '')} · ${esc((it.published_at ?? '').slice(0, 10))}</span>
+      </button>`).join('')}
+      <p class="small muted">아닌 것 같으면 공연자·곡명을 고치고 다시 누르세요.</p>`
+      : `<p class="warnbox">「${esc(q)}」로는 찾지 못했습니다. 공연자·곡명을 고쳐서 다시 누르거나, 주소를 직접 붙여넣으세요.</p>`;
+  } catch (e) {
+    host.innerHTML = `<p class="warnbox">${esc(e.issues?.[0]?.ko ?? e.error_ko ?? e.message)}</p>`;
+    notice(e.message, true);
+  }
+}
+
+/** Reads the address straight off the clipboard, so it never has to be put in the field by hand. */
+async function pasteUrl() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text?.trim()) { notice('클립보드가 비어 있습니다. 유튜브에서 주소를 복사하고 다시 누르세요.', true); return; }
+    cEl('ytUrl').value = text.trim();
+    await fetchUrl();
+  } catch {
+    // Clipboard permission is the browser's to give; typing into the field still works.
+    notice('브라우저가 클립보드 읽기를 막았습니다. 위 칸에 직접 붙여넣으면 바로 조회합니다.', true);
+    cEl('ytUrl').focus();
+  }
+}
+
+/** The operator chose one of the candidates: its address goes in and is looked up like any other. */
+async function useFound(i) {
+  const hit = (cstate.found ?? [])[i];
+  if (!hit) return;
+  cEl('ytUrl').value = hit.url;
+  cEl('ytFound').hidden = true;
+  await fetchUrl();
 }
 
 const tagsChecked = () => [...document.querySelectorAll('[data-ctag]')].filter((b) => b.checked).map((b) => b.dataset.ctag);
@@ -492,6 +583,10 @@ async function recheckFolder() {
 
 document.addEventListener('click', (e) => {
   if (e.target.closest('#ytFetch')) { fetchUrl(); return; }
+  if (e.target.closest('#ytSearch')) { searchForFile(); return; }
+  if (e.target.closest('#ytPaste')) { pasteUrl(); return; }
+  const found = e.target.closest('[data-found]');
+  if (found) { useFound(Number(found.dataset.found)); return; }
   if (e.target.closest('#ytRecheck')) { recheckFolder(); return; }
   if (e.target.closest('#cUploadBtn')) { cEl('cFile').click(); return; }
   if (e.target.closest('#cSubmit')) {
@@ -534,6 +629,12 @@ document.addEventListener('change', async (e) => {
     return;
   }
   if (['cOfficial', 'cChecked', 'cPublished', 'cType'].includes(e.target.id)) { cstate.result = null; refreshSubmit(); }
+});
+
+// Pasting the address IS the request to look it up; pressing a second button added nothing.
+document.addEventListener('paste', (e) => {
+  if (e.target.id !== 'ytUrl') return;
+  setTimeout(() => { if (cEl('ytUrl').value.trim()) fetchUrl(); }, 0);
 });
 
 document.addEventListener('input', (e) => {
