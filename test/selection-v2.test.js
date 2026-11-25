@@ -29,7 +29,7 @@ const cand = (over = {}) => ({
   ...over,
 });
 
-test('v2.0: a cover scores higher than a rearranged version, and a straight live rendition earns nothing', () => {
+test('v2.0: a cover scores higher than a rearranged version, and a straight live rendition scores the lowest tier', () => {
   const cover = score(cand({ performance_type: 'cover' }), CTX);
   const arranged = score(cand({ arrangement_tags: ['band'] }), CTX);
   const straight = score(cand(), CTX);
@@ -37,7 +37,7 @@ test('v2.0: a cover scores higher than a rearranged version, and a straight live
   const v = (s) => s.items.find((i) => i.key === 'versionDifference');
   assert.equal(v(cover).points, 50);
   assert.equal(v(arranged).points, 35);
-  assert.equal(v(straight).points, 0);
+  assert.equal(v(straight).points, 20, 'a plain live stage is worth less than the other two, but not nothing');
   assert.ok(v(cover).points > v(arranged).points, 'a cover of another artist beats a rearrangement');
   assert.ok(v(arranged).points > v(straight).points, 'a rearrangement beats a straight rendition');
 

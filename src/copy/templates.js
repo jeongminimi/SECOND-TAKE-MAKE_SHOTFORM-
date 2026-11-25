@@ -75,14 +75,45 @@ function watchCues(c) {
     .map((q) => ({ at_sec: q.at_sec, label: fmtTimestamp(q.at_sec), text: q.text_en }));
 }
 
-function hashtags(c) {
-  const tags = ['kpop'];
-  tags.push(c.performance_type === 'cover' ? 'kpopcover' : 'kpoplive');
+const tagSlug = (s) => (s && /^[\x20-\x7E]+$/.test(s) ? s.toLowerCase().replace(/[^a-z0-9]/g, '') : null);
+
+/**
+ * Hashtags describe the performance, not a genre. The account posts stages by singers from anywhere,
+ * so nothing here is K-pop specific: a tag for this scene belongs in the operator's own list, where
+ * they write it per video.
+ */
+function hashtags(c, { extra = [] } = {}) {
+  const tags = [c.performance_type === 'cover' ? 'cover' : 'livemusic'];
   const t = primaryTag(c);
   if (t) tags.push(`${t.replace('_', '')}version`);
-  const slug = (s) => (s && /^[\x20-\x7E]+$/.test(s) ? s.toLowerCase().replace(/[^a-z0-9]/g, '') : null);
-  for (const s of [slug(c.performer_en), isCoverOfOther(c) ? slug(c.original_artist_en) : null]) if (s && !tags.includes(s)) tags.push(s);
+  for (const s of [tagSlug(c.performer_en), isCoverOfOther(c) ? tagSlug(c.original_artist_en) : null]) {
+    if (s && !tags.includes(s)) tags.push(s);
+  }
+  // The operator's own tags come last, exactly as typed apart from what Instagram cannot carry.
+  for (const raw of extra ?? []) {
+    const s = String(raw).trim().replace(/^#+/, '').replace(/[^\p{L}\p{N}_]+/gu, '').toLowerCase();
+    if (s && !tags.includes(s)) tags.push(s);
+  }
   return tags.map((x) => `#${x}`);
+}
+
+/**
+ * What the video itself says about where the performance came from. A fan curation account credits
+ * the channel it is reposting from; that is what the burnt-in line is for. With neither a channel nor
+ * a link there is nothing to credit, and an invented one would be worse than none, so it draws nothing.
+ */
+function sourceCredit(c) {
+  const name = String(c?.channel_name ?? '').trim();
+  if (name) return `Source: ${name}`;
+  try {
+    const host = new URL(String(c?.official_url ?? '')).hostname.replace(/^www\./, '');
+    return host ? `Source: ${host}` : null;
+  } catch { return null; }
+}
+
+/** Operator-typed tags, stored as one line on the candidate. */
+function extraTags(c) {
+  return String(c?.extra_hashtags ?? '').split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
 }
 
 function buildCopy(c, { format, clipAsset = null, account }) {
@@ -108,8 +139,12 @@ function buildCopy(c, { format, clipAsset = null, account }) {
     for (const q of cues) lines.push(`${q.label} — ${q.text}`);
   }
   lines.push('');
-  lines.push(`Full official video: ${link}`);
-  lines.push('');
+  // A performance registered from a file alone has no link to point at; the line is dropped rather
+  // than printed empty, and nothing invents a URL in its place.
+  if (link) {
+    lines.push(`Full official video: ${link}`);
+    lines.push('');
+  }
   if (format === 'licensed_clip' && clipAsset?.personal_use_only) {
     // No permission was asked for, so the caption must not claim one.
     lines.push('Personal test render — not licensed for distribution.');
@@ -117,10 +152,11 @@ function buildCopy(c, { format, clipAsset = null, account }) {
     const holders = clipAsset.permissions.map((p) => `${p.rights_category}: ${p.rights_holder ?? 'n/a'}`).join('; ');
     lines.push(`Clip used with permission (${holders}).`);
   } else {
-    lines.push(`Original graphic by ${account.displayName}. No performance footage or audio is used — watch the full stage at the official link.`);
+    // Without a link there is no link to send anyone to, so the sentence stops before saying there is.
+    lines.push(`Original graphic by ${account.displayName}. No performance footage or audio is used${link ? ' — watch the full stage at the official link' : ''}.`);
   }
   lines.push('');
-  lines.push(hashtags(c).join(' '));
+  lines.push(hashtags(c, { extra: extraTags(c) }).join(' '));
   const caption = lines.join('\n');
   if (caption.length > 2200) throw new Error(`Caption is ${caption.length} chars (Instagram limit 2200)`);
 
@@ -143,6 +179,7 @@ function buildCopy(c, { format, clipAsset = null, account }) {
       footer: `${c.program_name ?? c.channel_name} · Full official video in caption`,
       cues,
       sourceLine: `${c.program_name ? `${c.program_name} · ` : ''}Official source: ${c.channel_name}`,
+      sourceCredit: sourceCredit(c),
       cta: 'Full official video → link in caption',
       versionKey: c.performance_type === 'cover' ? 'cover' : (primaryTag(c) ?? 'live'),
     },
@@ -154,4 +191,7 @@ async function aiVariation(/* copy, cfg */) {
   return null;
 }
 
-module.exports = { buildCopy, versionLabel, headline, officialLink, whyLine, hashtags, watchCues, aiVariation, versionTags };
+module.exports = {
+  buildCopy, versionLabel, headline, officialLink, whyLine, hashtags, extraTags, sourceCredit,
+  watchCues, aiVariation, versionTags,
+};

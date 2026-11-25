@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS performance_candidates (
   occasion_evidence     TEXT,
   watch_cues            TEXT    NOT NULL DEFAULT '[]', -- JSON [{at_sec, text_en, evidence}] — shown only when evidence is present
   judgement_notes       TEXT,                       -- operator / ingest notes on how this was verified
+  extra_hashtags        TEXT,                       -- operator's own hashtags, appended after the generated ones
   is_active             INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),  -- deactivated: kept for the record, never selected
   created_at            TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   CHECK (segment_start_sec IS NULL OR segment_end_sec IS NULL OR segment_end_sec > segment_start_sec)
@@ -146,6 +147,8 @@ CREATE TABLE IF NOT EXISTS reels (
   output_format       TEXT    NOT NULL CHECK (output_format IN ('licensed_clip','original_graphic')),
   template_id         TEXT,                         -- templates/reels/<id>.json used for rendering
   crop_x              REAL,                         -- operator's left/right framing, 0..1; NULL = use the template's own
+  crop_y              REAL,                         -- ditto up/down, only meaningful when zoom > 1
+  zoom                REAL,                         -- 1.0 = fit the box, up to 2.5 = closer and more cropped
   format_reason       TEXT    NOT NULL,
   format_reason_ko    TEXT,
   title_en            TEXT    NOT NULL,

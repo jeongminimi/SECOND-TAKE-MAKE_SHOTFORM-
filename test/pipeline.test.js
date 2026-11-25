@@ -201,7 +201,8 @@ test('selection: scores, deterministic tie-break, 7-day diversity, dry-run is no
   assert.equal(top[0][0], 'P002-haneul-starlight-acoustic-cover');
   assert.equal(ev.format, 'original_graphic');
   const plain = ev.eligible.find((e) => e.candidate.candidate_key === 'P007-lumina-starlight-stage');
-  assert.equal(plain.score.items.find((i) => i.key === 'versionDifference').points, 0, 'a straight live rendition earns nothing for version difference');
+  assert.equal(plain.score.items.find((i) => i.key === 'versionDifference').points, 20,
+    'a straight live rendition scores the lowest tier — 20 since 2026-11-25, not 0: posting live stages is the point of the account');
 
   if (!ffmpeg) return t.skip('FFmpeg not available');
   await runDay(db, cfg, '2026-11-15', { now: NOW });

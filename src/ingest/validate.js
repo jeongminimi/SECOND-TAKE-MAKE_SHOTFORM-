@@ -48,10 +48,25 @@ function validateChannel(c) {
   return out;
 }
 
+/**
+ * A video the operator has the file of but no link for. The account is theirs and a performance they
+ * already have can be posted; the link is a record of where it officially lives, and demanding one
+ * would make the file-first flow impossible. It is a gap in the record, so it warns, and nothing
+ * here lets it pass as a source: `platform: 'local'` says plainly that no platform id is claimed.
+ */
+const isLocal = (v) => String(v.platform ?? '').trim().toLowerCase() === 'local';
+
 function validateVideo(v) {
   const out = [];
+  const local = isLocal(v);
   for (const [f, label] of [['platform', '플랫폼'], ['platform_video_id', '영상 ID'], ['official_url', '공식 링크'], ['title', '영상 제목'], ['published_at', '공식 게시 시각']]) {
+    if (local && (f === 'official_url' || f === 'platform_video_id')) continue;
     if (isBlank(v[f])) out.push(block(f, `${f}_required`, `video: ${f} is required`, `${label}을(를) 입력하세요.`));
+  }
+  if (local && isBlank(v.official_url)) {
+    out.push(warn('official_url', 'official_url_missing',
+      'video: registered from a local file with no official link',
+      '출처 링크가 없습니다. 영상은 만들 수 있지만, 캡션에 공식 영상 주소가 들어가지 않습니다.'));
   }
   if (has(v.official_url) && !/^https?:\/\//i.test(v.official_url)) {
     out.push(block('official_url', 'official_url_invalid', 'video: official_url must be an http(s) URL', '공식 링크는 http:// 또는 https:// 로 시작해야 합니다.'));

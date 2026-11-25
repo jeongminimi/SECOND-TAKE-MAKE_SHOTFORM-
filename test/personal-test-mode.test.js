@@ -79,11 +79,14 @@ test('personal: a clip with no permissions at all is rendered in a dry run, and 
   assert.ok(!/used with permission/i.test(r.reel.caption), `caption claims a licence: ${r.reel.caption}`);
   assert.match(r.reel.caption, /Personal test render — not licensed for distribution\./);
 
-  // the warning is burned into the video too — checked on the text files drawtext rendered from
+  // What the video itself carries is a source credit — a post made this way is a real post. The
+  // record that rights were not checked lives in the database, on screen and in the exported note;
+  // test/credit-line.test.js covers the whole set.
   const workDir = path.join(cfg.resolved.output, 'reels', DATE, `reel-${r.reel.id}`);
   const drawn = fs.readdirSync(workDir).filter((f) => /^t\d+\.txt$/.test(f))
     .map((f) => fs.readFileSync(path.join(workDir, f), 'utf8')).join('\n');
-  assert.match(drawn, /개인 테스트용 · 권리 미확인 · 배포 불가/, 'the credit line in the video says it is unlicensed');
+  assert.match(drawn, /Source: Personal Mode Official \(TEST\)/, 'the credit line names the source channel');
+  assert.doesNotMatch(drawn, /개인 테스트용|배포 불가|권리 미확인/, 'and the video no longer calls a real post a test');
 
   // 7. and the exported folder warns before anything else is read
   const out = exportReel(db, cfg, { reelId: r.reel.id, dir: path.join(dir, 'export') });
@@ -126,4 +129,24 @@ test('personal: a segment longer than the reel limit is refused even for a perso
 
   const p = previewCandidate(db, cfg, candidate.id, DATE);
   assert.equal(p.format, 'original_graphic', 'so the day falls back to the graphic format');
+});
+
+// ── 7: the video caption was shortened, so the exported note is where the warning must survive ────
+test('personal: the exported 읽어보기.txt still opens with the do-not-publish warning', async (t) => {
+  const { db, cfg, ffmpeg, dir } = await makeEnv({}, { seed: false });
+  if (!ffmpeg) return t.skip('FFmpeg not available');
+  const { candidate } = buildChain(db);
+  attachPersonalClip(db, cfg, candidate.id);
+
+  const r = await runDay(db, cfg, DATE);
+  assert.equal(r.reel.render_status, 'done', `render failed: ${r.reel.render_error}`);
+
+  const out = exportReel(db, cfg, { reelId: r.reel.id, dir: path.join(dir, 'export') });
+  const readme = fs.readFileSync(path.join(out.dir, '읽어보기.txt'), 'utf8');
+  assert.equal(
+    readme.split('\n')[0],
+    '⚠ 이 영상은 권리를 확인하지 않은 개인 확인용입니다. 공개 게시하지 마세요.',
+    'the warning is the first thing read in the exported folder, word for word',
+  );
+  assert.match(readme, /공개 게시하지 마세요/, 'and the instruction not to publish is still spelled out');
 });

@@ -25,9 +25,9 @@
     "versionTiers": {
       "cover": 50,
       "arrangement": 35,
-      "live": 0
+      "live": 20
     },
-    "_versionTiersNote": "The account exists to find songs worth hearing again as someone else's performance. A cover of another artist's song is the strongest form of that, a different arrangement is weaker, and a straight live rendition is not it at all. v2.0 dropped the 'timeliness' item entirely: a hidden gem is usually an old video, and rewarding recency worked against the whole point.",
+    "_versionTiersNote": "The account exists to find songs worth hearing again as someone else's performance. A cover of another artist's song is the strongest form of that, and a different arrangement is weaker. A plain live rendition scored 0 until 2026-11-25, which kept it out of every automatic pick although posting live stages is the point of the account; it now scores 20, below the other two. v2.0 dropped the 'timeliness' item entirely: a hidden gem is usually an old video, and rewarding recency worked against the whole point.",
     "diversityWindowDays": 7,
     "differentiatingVersionTags": [
       "cover",
@@ -67,7 +67,7 @@
         "graphic-classic"
       ],
       "licensed_clip": [
-        "clip-standard"
+        "clip-large"
       ]
     },
     "_templatesNote": "Templates live in templates/reels/<id>.json. The list rotates by operating date (days since epoch mod length)."
@@ -80,6 +80,7 @@
     "output": "output",
     "testAssets": "storage/test-assets",
     "clips": "storage/clips",
+    "video": "storage/video",
     "evidence": "storage/evidence"
   },
   "analysis": {

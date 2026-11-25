@@ -32,6 +32,10 @@ const COLUMN_MIGRATIONS = [
   ['clip_assets', 'personal_use_only', 'INTEGER NOT NULL DEFAULT 0'],
   // Left as NULL on purpose: a reel with no stored framing uses whatever its template asks for.
   ['reels', 'crop_x', 'REAL'],
+  ['reels', 'crop_y', 'REAL'],
+  ['reels', 'zoom', 'REAL'],
+  // The generated hashtags describe the performance; a scene tag (#kpop) is the operator's to type.
+  ['performance_candidates', 'extra_hashtags', 'TEXT'],
 ];
 function migrate(db) {
   for (const [table, col, ddl] of COLUMN_MIGRATIONS) {
