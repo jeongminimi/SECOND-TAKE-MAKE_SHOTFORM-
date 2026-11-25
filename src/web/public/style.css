@@ -130,7 +130,9 @@ table.cands { width: 100%; border-collapse: collapse; font-size: 12px; }
 .cue input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; font: inherit; font-size: 12px; background: #fdfdfb; }
 
 .btn.tiny { padding: 4px 9px; font-size: 11px; }
-.upstate { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 5px; word-break: break-all; }
+.upstate { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 5px; word-break: break-all; white-space: pre-line; }
+/* A refusal is read where the button is, so it cannot look like the quiet grey progress line. */
+.upstate.err { font-family: inherit; font-size: 12.5px; font-weight: 600; color: #8f2016; background: #fde9e7; border: 1px solid #f2b4ad; border-radius: 8px; padding: 9px 11px; word-break: keep-all; }
 .perm-slot:not(:empty) { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 12px; }
 form.entry.perm h4 { margin: 0 0 10px; font-size: 13px; }
 .cands tr.off td { opacity: .5; }

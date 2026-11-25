@@ -27,7 +27,13 @@ let state = { overview: null, current: null, links: new Map() };
 async function api(path, opts) {
   const r = await fetch(path, opts);
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || r.statusText);
+  if (!r.ok) {
+    // A refusal carries a per-field Korean reason (issues[].ko) that says what to fix. Throwing only
+    // the English message threw that away, so it travels on the error and the caller decides.
+    const err = new Error(j.error || r.statusText);
+    err.issues = j.issues ?? null;
+    throw err;
+  }
   return j;
 }
 
@@ -384,6 +390,7 @@ function wireShape(d) {
     const btn = $('#reshapeBtn');
     const was = btn.textContent;
     btn.disabled = true; btn.textContent = '영상을 다시 만들고 있습니다…';
+    $('#shapeState').classList.remove('err');
     $('#shapeState').textContent = '수십 초 걸립니다. 이 창을 그대로 두세요.';
     try {
       const r = await api(`/api/reel/${d.reel.id}/template`, {
@@ -395,7 +402,10 @@ function wireShape(d) {
       await loadOverview();
       await showDay(d.selection.operating_date);
     } catch (e) {
-      $('#shapeState').textContent = '';
+      // Same reason as the save button in create.js: this button is in the middle of a long page and
+      // #notice is at the top of it, so clearing the line here read as "nothing happened".
+      $('#shapeState').textContent = `다시 만들지 못했습니다: ${e.message}`;
+      $('#shapeState').classList.add('err');
       notice(`다시 만들지 못했습니다: ${e.message}`, true);
       btn.disabled = false; btn.textContent = was;
     }
@@ -499,10 +509,13 @@ async function showDay(date) {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reelId: Number(exportBtn.dataset.reel) }),
         });
         // The path is the point of the button, so it is shown verbatim and left on screen to copy.
+        $('#exportResult').classList.remove('err');
         $('#exportResult').textContent = `${r.dir}\n${r.files.map((f) => `  ${f.name}  ${size(f.bytes)}`).join('\n')}`;
         notice('내보냈습니다. 아래 경로를 복사해 탐색기 주소창에 붙여 넣으면 폴더가 열립니다.');
       } catch (e) {
-        $('#exportResult').textContent = '';
+        // The last button on the page: its failure must not be reported only at the top of the page.
+        $('#exportResult').textContent = `내보내지 못했습니다: ${e.message}`;
+        $('#exportResult').classList.add('err');
         notice(`내보내지 못했습니다: ${e.message}`, true);
       } finally {
         exportBtn.disabled = false; exportBtn.textContent = was;

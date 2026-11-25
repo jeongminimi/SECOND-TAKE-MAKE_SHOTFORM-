@@ -4,8 +4,10 @@
  *
  * The file comes first, because that is how the work actually starts: the performance is already in
  * storage/video, and its file name usually says who performed what. Choosing one reads the name and
- * fills the form in. A YouTube link is offered below as an optional extra — it is a better source for
- * the title and channel, and it is what the caption links to — but a reel can be made without one.
+ * fills the form in. Where the performance came from is then stated explicitly: a YouTube link, the
+ * address of the page it was published on, or — when it is not from a video at all — a line the
+ * operator writes, which is the credit the picture carries. One of the three is required, because a
+ * post that reuses someone's stage says where the stage came from.
  *
  * The five registration steps still exist, under 자료 손보기 on the left, and still do the saving:
  * this screen calls the same endpoints in the order a person actually works.
@@ -18,7 +20,7 @@
  *    the program cannot know whether a title proves anything — or whether a channel is official.
  */
 
-const cstate = { lookup: null, fileRef: null, videoFiles: null };
+const cstate = { lookup: null, fileRef: null, videoFiles: null, result: null };
 
 const cEl = (id) => document.getElementById(id);
 const AUTO = '<span class="autofill">자동으로 채움 — 확인하세요</span>';
@@ -42,7 +44,7 @@ function field(id, label, { help = '', auto = false, type = 'text', placeholder 
 
 const TAGS = ['band', 'acoustic', 'orchestra', 'unplugged', 'piano', 'jazz', 'a_cappella', 'rearranged'];
 
-/** ① as it stands before anything is chosen: the folder first, the link as an afterthought. */
+/** ① as it stands before anything is chosen: the folder first, then where it came from. */
 function step1Html() {
   return `<div class="fld" data-field="file_ref">
     <label for="cFileList">영상 파일</label>
@@ -74,15 +76,37 @@ function step1Html() {
   </div>
   ${field('cVersionEv', '↳ 커버인지·편곡이 다른지를 어디서 확인했나요', { help: '예: 공식 제목에 [COVER] 라고 적혀 있음. 비어 있으면 저장이 막힙니다.' })}
 
-  <div class="fld" data-field="url">
-    <label for="ytUrl">유튜브 주소 <span class="opt">(출처 기록용 · 선택)</span></label>
+  <div class="fld" data-field="source">
+    <label>이 영상의 출처</label>
+    <div class="tagRow">
+      <label class="check"><input type="radio" name="cSrcKind" value="youtube" checked> 유튜브</label>
+      <label class="check"><input type="radio" name="cSrcKind" value="other"> 다른 곳 (공식 SNS·방송사 페이지 등)</label>
+      <label class="check"><input type="radio" name="cSrcKind" value="none"> 유튜브 영상이 아님 (직접 촬영 등)</label>
+    </div>
+    <span class="fhelp">셋 중 무엇을 고르더라도 아래 칸을 채워야 등록됩니다. 프로그램은 출처를 지어내지 않습니다.</span>
+  </div>
+
+  <div class="fld" data-field="url" id="srcYoutube">
+    <label for="ytUrl">유튜브 주소</label>
     <div class="row">
       <input type="url" id="ytUrl" placeholder="https://www.youtube.com/watch?v=...">
       <button class="btn ghost" id="ytFetch" type="button">가져오기</button>
     </div>
-    <span class="fhelp">넣으면 공식 제목·채널로 위 값을 덮어씁니다 (더 정확합니다). 손으로 고친 칸은 그대로 둡니다.
-      안 넣어도 영상은 만들어집니다 — 캡션에 공식 영상 주소만 들어가지 않습니다. 영상을 내려받지는 않습니다.</span>
+    <span class="fhelp">「가져오기」까지 성공해야 등록됩니다 — 공식 제목과 채널 이름이 그때 들어옵니다. 손으로 고친 칸은 그대로 둡니다.
+      영상을 내려받지는 않습니다.</span>
     <div id="ytResult" hidden></div>
+  </div>
+
+  <div class="fld" data-field="srcUrl" id="srcOther" hidden>
+    <label for="cSrcUrl">출처 주소</label>
+    <input type="url" id="cSrcUrl" placeholder="https://...">
+    <span class="fhelp">그 무대가 공개된 페이지 주소를 그대로 붙여넣으세요. 캡션의 공식 영상 주소로 들어갑니다.</span>
+  </div>
+
+  <div class="fld" data-field="srcNote" id="srcNone" hidden>
+    <label for="cSrcNote">이 영상을 어디서 얻었나요</label>
+    <input type="text" id="cSrcNote" placeholder="예: 내가 직접 촬영 · 2026-10-12 서울 공연">
+    <span class="fhelp"><b>여기 쓴 글이 영상에 Source: ___ 으로 그대로 나갑니다.</b> 보는 사람이 읽을 문장으로 적으세요.</span>
   </div>
 
   <label class="check big" data-field="official"><input type="checkbox" id="cOfficial">
@@ -130,10 +154,21 @@ function step2Html() {
     <div class="upstate" id="cSubmitState"></div>`;
 }
 
-/** The save button unlocks only when both confirmations are ticked and the essentials are present. */
+/**
+ * The save button unlocks only when both confirmations are ticked and the essentials are present.
+ *
+ * It has to refuse exactly what the server refuses, or the button promises a save that cannot happen:
+ * an arrangement tag claims this version differs from the original, and that claim needs the source it
+ * was read from, which POST /api/entry/candidate rejects without (`version_evidence_required`).
+ *
+ * `name_evidence` is the other way round — it never stops a save, it only keeps the candidate out of
+ * automatic selection. So it warns here and does not lock. The rule is the server's; this only mirrors
+ * it, and neither of them is relaxed to make the button easier to press.
+ */
 function refreshSubmit() {
   const btn = cEl('cSubmit');
   if (!btn) return;
+  const taggedWithoutSource = tagsChecked().length > 0 && !cEl('cVersionEv')?.value.trim();
   const need = [
     [cEl('cOfficial')?.checked, '공식 채널 확인'],
     [cEl('cChecked')?.checked, '확인했습니다'],
@@ -142,9 +177,21 @@ function refreshSubmit() {
     [cEl('cPublished')?.value, '공개일'],
     [cstate.fileRef, '영상 파일'],
     [cEl('cStart')?.value.trim(), '구간 시작'],
+    [!taggedWithoutSource, '편곡 태그 근거'],
+    [!sourceNeed(), sourceNeed()],
   ].filter(([ok]) => !ok).map(([, label]) => label);
   btn.disabled = need.length > 0;
-  cEl('cSubmitState').textContent = need.length ? `아직 비어 있습니다: ${need.join(' · ')}` : '';
+
+  // What a finished attempt said stays until the operator changes something; otherwise the line under
+  // the button would snap back to a checklist the moment a save failed, which reads as "nothing
+  // happened" — the very thing that made a refusal invisible.
+  const st = cEl('cSubmitState');
+  st.classList.toggle('err', Boolean(cstate.result?.err));
+  if (cstate.result) { st.textContent = cstate.result.text; return; }
+  st.textContent = [
+    need.length ? `아직 비어 있습니다: ${need.join(' · ')}` : '',
+    cEl('cNameEv') && !cEl('cNameEv').value.trim() ? '공식 표기 근거가 없어 자동 선곡에서는 빠집니다 — 등록은 됩니다.' : '',
+  ].filter(Boolean).join('\n');
 }
 
 /** Fills a field and marks it as something the program guessed, unless the operator already typed. */
@@ -240,6 +287,23 @@ async function fetchUrl() {
 const tagsChecked = () => [...document.querySelectorAll('[data-ctag]')].filter((b) => b.checked).map((b) => b.dataset.ctag);
 const val = (id) => cEl(id)?.value.trim() || null;
 
+/** Which of the three kinds of source the operator said this performance came from. */
+const srcKind = () => document.querySelector('[name="cSrcKind"]:checked')?.value ?? 'youtube';
+const isUrl = (s) => /^https?:\/\/\S+$/i.test(String(s ?? '').trim());
+const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return null; } };
+
+/**
+ * What is still missing for the chosen kind of source. A performance taken from YouTube has to carry
+ * the link it came from — that is the operator's own rule for the account, and the program cannot
+ * check it, so the screen refuses to save without it rather than filling in a placeholder.
+ */
+function sourceNeed() {
+  const kind = srcKind();
+  if (kind === 'youtube') return cstate.lookup?.normalized_url ? null : '유튜브 주소 가져오기';
+  if (kind === 'other') return isUrl(cEl('cSrcUrl')?.value) ? null : '출처 주소';
+  return val('cSrcNote') ? null : '출처 (어디서 얻었는지)';
+}
+
 /**
  * Saves through the same five endpoints the registration screen uses, in the order they depend on
  * each other, then runs the day so there is something to look at. Stops at the first refusal and says
@@ -252,30 +316,64 @@ async function submitAll() {
   const btn = cEl('cSubmit');
   const was = btn.textContent;
   btn.disabled = true; btn.textContent = '등록하는 중…';
-  const say = (t) => { cEl('cSubmitState').textContent = t; };
+  cstate.result = null;
+  const say = (t) => { cEl('cSubmitState').classList.remove('err'); cEl('cSubmitState').textContent = t; };
   const post = async (path, body, what) => {
     try {
       return await api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    } catch (e) { throw new Error(`${what}: ${e.message}`); }
+    } catch (e) {
+      const err = new Error(`${what}: ${e.message}`);
+      err.issues = e.issues ?? null; // the Korean reasons ride along to the catch below
+      throw err;
+    }
   };
+  // Tracks whether anything has been written yet, so a refusal can say what is already in the
+  // database. The six endpoints are six separate saves with no transaction between them.
+  let saved = false;
   try {
     const L = cstate.lookup;
-    const linked = Boolean(L?.normalized_url);
-    const chName = val('cChannel') ?? L?.channel_name ?? '출처 미상';
+
+    // The candidate step (4/6) is the one with the evidence rules, and it is the fourth save — a
+    // refusal there used to leave a channel, a video and a track behind with no candidate attached.
+    // So it is asked first, through the route that validates and writes nothing.
+    say('입력을 확인하는 중 — 아직 아무것도 저장하지 않습니다');
+    const pre = await post('/api/entry/check/candidate', {
+      performer_en: val('cPerformer'), performance_type: cEl('cType').value,
+      arrangement_tags: tagsChecked(), version_evidence: val('cVersionEv'),
+      why_watch_en: val('cWhy'), extra_hashtags: val('cTags'),
+    }, '입력 확인');
+    // candidate_key is made by the save itself from the performer and the song, so it is not missing
+    // here in any sense the operator could act on.
+    const stops = (pre.issues ?? []).filter((i) => i.level === 'block' && i.field !== 'candidate_key');
+    if (stops.length) { const e = new Error('입력을 확인하세요'); e.issues = stops; throw e; }
+    const kind = srcKind();
+    const linked = kind === 'youtube' && Boolean(L?.normalized_url);
+    // Whatever the operator said the source is, verbatim. A performance taken from YouTube is saved
+    // with its link; one from somewhere else with that page's address; one that is not from a video at
+    // all with the line they typed, which is what the picture then credits.
+    const url = linked ? L.normalized_url : (kind === 'other' ? val('cSrcUrl') : '');
+    const chName = val('cChannel')
+      ?? (kind === 'none' ? val('cSrcNote') : (linked ? L.channel_name : null))
+      ?? hostOf(url);
+    // Nothing stands in for a source: '출처 미상' used to be written here, which put a credit on the
+    // video that no one had checked.
+    if (!chName) throw new Error('출처를 적어야 합니다 — 유튜브 주소, 출처 주소, 또는 어디서 얻었는지 한 줄.');
     const handle = linked ? ((L.channel_url ?? '').split('/').pop() || chName) : `local-${chName}`;
 
     say('1/6 채널');
     const ch = await post('/api/entry/channel', {
-      platform: linked ? 'youtube' : 'local', external_id: handle, name: chName, url: L?.channel_url ?? null,
+      platform: linked ? 'youtube' : 'local', external_id: handle, name: chName,
+      url: linked ? (L.channel_url ?? null) : (kind === 'other' ? url : null),
     }, '채널');
+    saved = true;
 
     say('2/6 원본 영상');
     const vid = await post('/api/entry/video', {
       channel_id: ch.row.id,
       platform: linked ? 'youtube' : 'local',
       platform_video_id: linked ? L.video_id : null,
-      official_url: linked ? L.normalized_url : '',
-      title: L?.title ?? `${val('cPerformer')} – ${val('cTitle')}`,
+      official_url: url,
+      title: (linked ? L?.title : null) ?? `${val('cPerformer')} – ${val('cTitle')}`,
       published_at: `${cEl('cPublished').value}T00:00:00Z`,
     }, '원본 영상');
 
@@ -308,15 +406,27 @@ async function submitAll() {
     say('6/6 영상 만드는 중 — 수십 초 걸립니다');
     const date = cEl('runDate').value || state.overview?.today;
     const r = await post('/api/run', { date, reselect: true }, '영상 만들기');
-    say(linked ? '' : '출처 링크 없이 등록했습니다 — 캡션에 공식 영상 주소가 들어가지 않습니다.');
+    cstate.result = url ? null
+      : { text: `출처를 「${chName}」(으)로 기록했습니다. 공식 영상 주소가 없어 캡션에 링크는 들어가지 않습니다.`, err: false };
     notice(r.status === 'selected'
       ? `등록하고 ${date} 영상까지 만들었습니다. 아래에서 모양을 맞추고 내보내세요.`
       : `등록했습니다. 다만 ${date}에는 이 후보가 뽑히지 않았습니다 — 아래 설명을 보세요.`);
     await loadOverview();
     await showDay(date);
   } catch (e) {
-    say('');
-    notice(`등록하지 못했습니다 — ${e.message}`, true);
+    // The refusal has to be where the operator is looking. They pressed a button at the bottom of a
+    // long form and #notice is at the top of the page, so clearing the line beside the button looked
+    // like the press did nothing at all. The server's reason is Korean and names the field; the
+    // English message is only the fallback for an error that carries no issues.
+    const reasons = (e.issues ?? []).filter((i) => i.level === 'block').map((i) => i.ko).filter(Boolean);
+    const msg = `등록하지 못했습니다 — ${reasons.length ? reasons.join('\n') : e.message}`;
+    cstate.result = {
+      text: saved
+        ? `${msg}\n채널·영상·곡은 이미 저장됐습니다. 고쳐서 다시 누르면 같은 줄을 덮어씁니다.`
+        : msg,
+      err: true,
+    };
+    notice(msg, true);
   } finally {
     btn.textContent = was;
     refreshSubmit();
@@ -368,7 +478,20 @@ document.addEventListener('change', async (e) => {
     } catch (err) { st.textContent = `올리지 못했습니다: ${err.message}`; }
     return;
   }
-  if (['cOfficial', 'cChecked', 'cPublished'].includes(e.target.id)) refreshSubmit();
+  // An arrangement tag is what makes the version-difference source necessary, so ticking one has to
+  // re-check the button the same way filling a field does.
+  if (e.target.matches?.('[data-ctag]')) { cstate.result = null; refreshSubmit(); return; }
+  // Each kind of source asks for a different thing, so only that one's field is on screen.
+  if (e.target.name === 'cSrcKind') {
+    const kind = srcKind();
+    cEl('srcYoutube').hidden = kind !== 'youtube';
+    cEl('srcOther').hidden = kind !== 'other';
+    cEl('srcNone').hidden = kind !== 'none';
+    cstate.result = null;
+    refreshSubmit();
+    return;
+  }
+  if (['cOfficial', 'cChecked', 'cPublished', 'cType'].includes(e.target.id)) { cstate.result = null; refreshSubmit(); }
 });
 
 document.addEventListener('input', (e) => {
@@ -376,7 +499,10 @@ document.addEventListener('input', (e) => {
   // and a later lookup leaves that field alone.
   const fld = e.target.closest?.('.fld, .check');
   fld?.querySelector('.autofill')?.remove();
-  if (['cPerformer', 'cTitle', 'cStart', 'cEnd'].includes(e.target.id)) {
+  // Editing anything in these two steps means the last attempt's message no longer describes what is
+  // on screen, so the line goes back to saying what is still missing.
+  if (e.target.closest?.('#stepPick, #stepClip') && cstate.result) { cstate.result = null; refreshSubmit(); }
+  if (['cPerformer', 'cTitle', 'cStart', 'cEnd', 'cVersionEv', 'cNameEv', 'cSrcUrl', 'cSrcNote'].includes(e.target.id)) {
     if (e.target.id === 'cStart' && cEl('cEnd') && !cEl('cEnd').value.trim()) {
       const sec = toSeconds(e.target.value);
       if (sec != null) cEl('cEnd').value = `${Math.floor((sec + 25) / 60)}:${String((sec + 25) % 60).padStart(2, '0')}`;
