@@ -20,7 +20,8 @@
  *    the program cannot know whether a title proves anything — or whether a channel is official.
  */
 
-const cstate = { lookup: null, fileRef: null, videoFiles: null, result: null, missing: [], youtubeSearch: false, found: [] };
+const cstate = { lookup: null, fileRef: null, videoFiles: null, result: null, missing: [],
+  youtubeSearch: false, found: [], playerTime: null };
 
 const cEl = (id) => document.getElementById(id);
 const AUTO = '<span class="autofill">자동으로 채움 — 확인하세요</span>';
@@ -121,18 +122,54 @@ function step1Html() {
   ${field('cPublished', '공식 공개일', { type: 'date', help: '유튜브에서 가져올 수 없는 값입니다. 영상 아래에 적힌 공개일을 직접 넣으세요. 파일을 받은 날짜가 아닙니다. 이 날짜가 어느 운영일에 뽑힐 수 있는지를 정합니다.' })}`;
 }
 
+const mmss = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
+const comma = (n) => (n == null ? null : Number(n).toLocaleString('ko-KR'));
+
+/**
+ * The official video, played in the page.
+ *
+ * This is YouTube's own embed: it plays the video from YouTube and nothing is downloaded, stored or
+ * cut here. It is here so the operator can watch the stage and mark where the good part starts
+ * instead of having to know the timecode before they begin. What gets cut is still their own file.
+ */
+function playerHtml(r) {
+  const d = r.details;
+  const rows = [
+    ['제목', r.title],
+    ['채널', r.channel_name],
+    ['길이', d?.duration_sec != null ? mmss(d.duration_sec) : null],
+    ['조회수', comma(d?.view_count)],
+    ['공개일', d?.published_at ? d.published_at.slice(0, 10) : null],
+  ].filter(([, v]) => v);
+  return `<div class="ytPlayerBox">
+    <div class="ytFrame"><iframe id="ytPlayer" src="https://www.youtube.com/embed/${esc(r.video_id)}?enablejsapi=1&rel=0"
+      title="원본 영상" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+    <div class="ytInfo">
+      <table class="ytMeta">${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(String(v))}</td></tr>`).join('')}</table>
+      ${d ? '' : '<p class="small muted">길이·조회수·공개일은 API 키를 넣으면 함께 들어옵니다.</p>'}
+      <p class="small muted">재생하면서 쓸 구간을 정하세요. 버튼을 누르면 ② 구간 칸에 그 시각이 들어갑니다.</p>
+      <div class="row">
+        <button class="btn ghost" id="segFrom" type="button">여기부터</button>
+        <button class="btn ghost" id="segTo" type="button">여기까지</button>
+      </div>
+      <p class="small muted">영상은 유튜브에서 재생됩니다 — 이 프로그램은 내려받거나 저장하지 않습니다.
+        자르기는 <b>운영자가 넣은 파일</b>에 합니다.</p>
+    </div>
+  </div>`;
+}
+
 /** What a link added: the official title, the channel, and whether the file for it is in the folder. */
 function lookupHtml(r) {
   const found = r.local_file
     ? `<p class="small">폴더에서 같은 영상을 찾았습니다 (${r.local_match_by === 'id' ? '영상 번호' : '제목'} 기준): <b>${esc(r.local_file.name)}</b></p>`
     : `<p class="warnbox">${esc(r.local_note ?? '')}<br><button class="btn ghost" id="ytRecheck" type="button">폴더 다시 확인</button></p>`;
-  return `<div class="picked">
+  return `${r.video_id ? playerHtml(r) : `<div class="picked">
     ${r.thumbnail_url ? `<img class="thumb" src="${esc(r.thumbnail_url)}" alt="" onerror="this.remove()">` : ''}
     <div>
       <p class="pickedTitle">${esc(r.title ?? '(제목을 가져오지 못했습니다)')}</p>
       <p class="small muted">${esc(r.channel_name ?? '채널 미상')} · <a href="${esc(r.normalized_url)}" target="_blank" rel="noopener noreferrer">영상 보기 ↗</a></p>
     </div>
-  </div>
+  </div>`}
   ${r.lookup_ok ? '' : `<p class="warnbox">${esc(r.note)}</p>`}
   ${found}`;
 }
@@ -310,7 +347,11 @@ async function fetchUrl() {
     cstate.lookup = r;
     cEl('ytResult').hidden = false;
     cEl('ytResult').innerHTML = lookupHtml(r);
+    watchPlayer();
     autofill('cChannel', r.channel_name);
+    // The published date decides which operating day this can be selected for. oEmbed has no such
+    // field, so it used to be typed by hand; videos.list carries it, as a suggestion like the rest.
+    if (r.details?.published_at) autofill('cPublished', r.details.published_at.slice(0, 10));
     if (r.local_file) {
       await loadVideoFiles();
       cEl('cFileList').value = r.local_file.file_ref;
@@ -367,6 +408,44 @@ async function searchForFile() {
     host.innerHTML = `<p class="warnbox">${esc(e.issues?.[0]?.ko ?? e.error_ko ?? e.message)}</p>`;
     notice(e.message, true);
   }
+}
+
+/**
+ * Where the embedded player currently is.
+ *
+ * YouTube's embed reports playback state to the page that asked for it, so there is no need to load
+ * their API script: the iframe is told to start reporting (`listening`), and each report carries the
+ * current time. Only messages from YouTube's own origin are read.
+ */
+window.addEventListener('message', (e) => {
+  if (!/^https:\/\/(www\.)?youtube(-nocookie)?\.com$/.test(e.origin)) return;
+  let d = null;
+  try { d = JSON.parse(e.data); } catch { return; }
+  const t = d?.info?.currentTime;
+  if (typeof t === 'number' && Number.isFinite(t)) cstate.playerTime = t;
+});
+
+/** Asks the freshly-mounted player to report its position. */
+function watchPlayer() {
+  const f = cEl('ytPlayer');
+  if (!f) return;
+  cstate.playerTime = null;
+  const hello = () => f.contentWindow?.postMessage(
+    JSON.stringify({ event: 'listening', id: 'ytPlayer', channel: 'widget' }), 'https://www.youtube.com');
+  f.addEventListener('load', hello);
+  hello();
+}
+
+/** 「여기부터」/「여기까지」: the player's position becomes the segment field, in 1:23 form. */
+function setSegFromPlayer(id) {
+  if (!cEl(id)) { notice('먼저 영상 파일을 고르세요. ② 구간 칸이 생기면 시각을 넣을 수 있습니다.', true); return; }
+  const t = cstate.playerTime;
+  if (t == null) { notice('영상을 조금 재생한 다음 눌러 주세요 — 멈춰 있으면 시각을 읽을 수 없습니다.', true); return; }
+  cEl(id).value = mmss(t);
+  if (id === 'cStart' && cEl('cEnd') && !cEl('cEnd').value.trim()) cEl('cEnd').value = mmss(Math.floor(t) + 25);
+  cstate.result = null;
+  refreshSubmit();
+  notice(`${id === 'cStart' ? '시작' : '끝'}을 ${mmss(t)} 로 넣었습니다. 유튜브에서 본 시각이므로 「그 시각을 어떻게 알았나요」에 근거를 적을 수 있습니다.`);
 }
 
 /** Reads the address straight off the clipboard, so it never has to be put in the field by hand. */
@@ -585,6 +664,8 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#ytFetch')) { fetchUrl(); return; }
   if (e.target.closest('#ytSearch')) { searchForFile(); return; }
   if (e.target.closest('#ytPaste')) { pasteUrl(); return; }
+  if (e.target.closest('#segFrom')) { setSegFromPlayer('cStart'); return; }
+  if (e.target.closest('#segTo')) { setSegFromPlayer('cEnd'); return; }
   const found = e.target.closest('[data-found]');
   if (found) { useFound(Number(found.dataset.found)); return; }
   if (e.target.closest('#ytRecheck')) { recheckFolder(); return; }

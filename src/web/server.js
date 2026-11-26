@@ -21,7 +21,7 @@ const { renderReel, ZOOM_MIN, ZOOM_MAX } = require('../render/renderReel');
 const { buildCopy } = require('../copy/templates');
 const { lookupYoutube, findVideoFile, suggestFromFilename } = require('../ingest/youtubeUrl');
 const { sourceForFile, WHERE_KO } = require('../ingest/videoSource');
-const { searchYoutube, hasApiKey } = require('../ingest/youtubeSearch');
+const { searchYoutube, videoDetails, hasApiKey } = require('../ingest/youtubeSearch');
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -330,9 +330,16 @@ function createApp(cfg, db, impl = express) {
       // so their folder is searched for it — by the video id in the file name, else by the title.
       // Nothing is fetched when it is not there; the answer is "put it in the folder".
       const hit = findVideoFile(entry.listVideoFiles(cfg), { videoId: look.video_id, title: look.title });
+      // Length, views and the published date, when a key is configured. A failure here is not a
+      // failure of the lookup: the link still works, those fields just stay empty (1 quota unit).
+      let details = null;
+      if (hasApiKey(cfg) && look.video_id) {
+        try { details = await videoDetails(look.video_id, { cfg }); } catch { details = null; }
+      }
       res.json({
         ok: true,
         ...look,
+        details,
         local_file: hit?.file ?? null,
         local_match_by: hit?.by ?? null,
         local_note: hit ? null : `이 영상이 storage/video 폴더에 없습니다. 받아서 폴더에 넣어 주세요. 영상 번호: ${look.video_id}`,

@@ -107,7 +107,9 @@ test('search: a quota refusal is explained, and the key is never echoed back', a
 
 // ── 5: the screen is told which of the two ways it can offer ─────────────────────────────────────
 test('search: the file listing says whether in-page search is available at all', async () => {
-  const { db, cfg } = await makeEnv({}, { seed: false });
+  // Explicitly keyless: the operator's own config/local.json may well hold a real key, and this test
+  // is about what the screen does when there is none.
+  const { db, cfg } = await makeEnv({ youtube: { apiKey: null } }, { seed: false });
   const server = http.createServer(createApp(cfg, db));
   await new Promise((r) => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -142,4 +144,67 @@ test('search: the screen offers candidates and waits — it does not fetch video
   assert.deepEqual([...new Set(search.match(/https:\/\/[\w.]+/g) ?? [])],
     ['https://www.googleapis.com', 'https://www.youtube.com'], 'no other host is contacted or linked');
   assert.match(search, /const SEARCH_URL = 'https:\/\/www\.googleapis\.com\/youtube\/v3\/search'/);
+});
+
+// ── 7: the length / views / published date that oEmbed cannot give ───────────────────────────────
+test('details: videos.list fills in what a link alone cannot say', async () => {
+  const { videoDetails, parseIsoDuration } = require('../src/ingest/youtubeSearch');
+
+  assert.equal(parseIsoDuration('PT4M13S'), 253);
+  assert.equal(parseIsoDuration('PT1H2M3S'), 3723);
+  assert.equal(parseIsoDuration('PT45S'), 45);
+  assert.equal(parseIsoDuration('P0D'), null, 'a live stream has no length — and none is invented');
+  assert.equal(parseIsoDuration(''), null);
+
+  const captured = {};
+  const fetchImpl = async (url) => {
+    captured.url = String(url);
+    return {
+      ok: true,
+      json: async () => ({
+        items: [{
+          snippet: {
+            title: "The Collingsworth Family - I'll Be Home for Christmas (Live)",
+            channelTitle: 'GaitherVEVO', channelId: 'UC-gaither', publishedAt: '2026-10-30T15:00:07Z',
+            liveBroadcastContent: 'none',
+          },
+          contentDetails: { duration: 'PT4M13S' },
+          statistics: { viewCount: '1500000', likeCount: '35000' },
+        }],
+      }),
+    };
+  };
+  const d = await videoDetails('-rxkZCTF9XE', { cfg: cfgWithKey, fetchImpl });
+  assert.equal(d.duration_sec, 253);
+  assert.equal(d.view_count, 1500000, 'a count comes back as a number, not the API string');
+  assert.equal(d.published_at, '2026-10-30T15:00:07Z', 'the date the operating-day rule needs');
+  assert.equal(d.channel_name, 'GaitherVEVO');
+  assert.equal(d.live, null);
+
+  const u = new URL(captured.url);
+  assert.equal(u.origin + u.pathname, 'https://www.googleapis.com/youtube/v3/videos', 'videos.list — 1 unit, not a search');
+  assert.equal(u.searchParams.get('part'), 'snippet,contentDetails,statistics');
+  assert.equal(u.searchParams.get('id'), '-rxkZCTF9XE', 'an id starting with a hyphen survives');
+
+  // a video that is gone is gone: no fields are guessed for it
+  const missing = await videoDetails('-rxkZCTF9XE', { cfg: cfgWithKey, fetchImpl: async () => ({ ok: true, json: async () => ({ items: [] }) }) });
+  assert.equal(missing, null);
+});
+
+// ── 8: the player in the page plays from YouTube and cuts nothing ────────────────────────────────
+test('details: the embedded player is an embed — it never fetches or stores the video', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const create = fs.readFileSync(path.join(__dirname, '..', 'src', 'web', 'public', 'create.js'), 'utf8');
+
+  assert.match(create, /https:\/\/www\.youtube\.com\/embed\//, "YouTube's own embed");
+  assert.match(create, /이 프로그램은 내려받거나 저장하지 않습니다/, 'and the screen says what it is');
+  assert.doesNotMatch(create, /googlevideo|videoplayback|yt-dlp|ytdl/i, 'nothing reaches for the file');
+
+  // the position is read from YouTube's own messages, origin-checked, with no extra script loaded
+  assert.ok(create.includes("youtube(-nocookie)?") && create.includes('e.origin'),
+    'only messages from the YouTube origin are read');
+  assert.doesNotMatch(create, /iframe_api/, 'no external script is pulled in for it');
+  assert.match(create, /function setSegFromPlayer\(id\)/, 'and the position becomes the segment field');
+  assert.match(create, /영상을 조금 재생한 다음 눌러 주세요/, 'with a clear answer when it has not played yet');
 });
