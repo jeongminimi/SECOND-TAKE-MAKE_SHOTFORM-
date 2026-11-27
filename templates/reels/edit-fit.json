@@ -1,0 +1,11 @@
+{
+  "id": "edit-fit",
+  "format": "licensed_clip",
+  "name": "전체 보이기 (위아래 여백)",
+  "description": "영상 전체가 잘리지 않고 들어갑니다. 9:16 화면이므로 위아래에 검은 여백이 생깁니다. 여러 명이 선 무대처럼 좌우를 자르면 안 될 때 씁니다. 글씨는 맨 아래 출처 한 줄뿐입니다.",
+  "video": { "y": "(H-h)/2", "fit": "contain" },
+  "progressBar": false,
+  "elements": [
+    { "type": "text", "bind": "credit", "size": 26, "color": "#FFFFFF", "y": 1838, "shadow": true }
+  ]
+}

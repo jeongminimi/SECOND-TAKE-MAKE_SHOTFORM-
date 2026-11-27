@@ -226,3 +226,90 @@ details.advanced[open] { padding-bottom: 2px; }
 .ythumb { width: 104px; border-radius: 6px; display: block; background: #e9e9ee; }
 .col-main .ylink { flex-direction: row; align-items: center; gap: 10px; margin: 8px 0; font-size: 12px; }
 .col-main .ythumb { width: 120px; }
+
+/* ── 영상 편집기 ─────────────────────────────────────────────────────────────────────────────────
+   The picture is the screen. Everything that is a decision sits beside it, never below the fold. */
+.editLayout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 16px; padding: 16px; align-items: start; }
+.editMain, .editSide { display: grid; gap: 16px; align-content: start; min-width: 0; }
+.stage video { width: 100%; max-height: 62vh; background: #000; border-radius: 10px; display: block; }
+.playAt { margin: 8px 0 0; font-size: 13px; }
+.playAt b { font-family: var(--mono); font-size: 15px; }
+
+.segRow { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.segRow input[type=text] { width: 76px; text-align: center; font-family: var(--mono); padding: 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
+.segLen { margin: 4px 0 10px; font-size: 13px; color: var(--muted); }
+.segLen.over { color: #8f2016; font-weight: 700; }
+
+.panel h3 { margin: 0 0 10px; font-size: 14px; }
+.panel input[type=text] { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; box-sizing: border-box; }
+.shapes { display: grid; gap: 6px; margin-bottom: 12px; }
+.sl { display: grid; grid-template-columns: 52px 1fr; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.sl output { font-family: var(--mono); font-size: 12px; color: var(--ink); grid-column: 1; }
+.sl input[type=range] { grid-column: 2; grid-row: 1; width: 100%; }
+
+/* The 9:16 still: one real frame from the renderer, big enough to judge what is cut off. */
+.shotBox img { width: 100%; max-width: 270px; aspect-ratio: 9 / 16; object-fit: cover; background: #111; border-radius: 10px; display: block; margin: 0 auto 8px; }
+.shotBox.loading img { opacity: .45; transition: opacity .15s; }
+.actions.big { display: flex; gap: 10px; }
+.actions.big .btn { flex: 1; padding: 11px; font-size: 14px; }
+
+.histList { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; max-height: 240px; overflow: auto; }
+.histList button { width: 100%; text-align: left; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; cursor: pointer; display: flex; gap: 10px; align-items: baseline; font: inherit; }
+.histList button:hover { border-color: var(--ink); }
+.histList .d { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.histList .t { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 1000px) { .editLayout { grid-template-columns: 1fr; } .shotBox img { max-width: 210px; } }
+.tfld { display: block; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.tfld input { margin-top: 3px; }
+
+/* ── 9:16 화면이 주인공 ──────────────────────────────────────────────────────────────────────────
+   The frame is built at the real 1080×1920 and scaled once, so every coordinate in a template is the
+   same number here as in the FFmpeg filter. Nothing inside .frame1080 is sized in screen pixels. */
+.pickRow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pickRow select { flex: 1; min-width: 220px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; }
+.frameWrap { display: grid; justify-items: center; gap: 8px; }
+.frameOuter { position: relative; overflow: hidden; border-radius: 12px; background: #101014; box-shadow: 0 6px 24px rgba(0,0,0,.28); }
+.frame1080 { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-origin: top left; background: #101014; }
+.frameHint { font-size: 13px; color: var(--muted); }
+.cs-vbox { position: absolute; overflow: hidden; background: #000; }
+.cs-vbox video { display: block; }
+.cs-el { position: absolute; font-family: "Malgun Gothic", "맑은 고딕", sans-serif; font-weight: 700; white-space: pre-wrap; word-break: keep-all; }
+/* A line in the picture is not edited here — clicking it jumps to its block on the right. */
+.cs-click { cursor: pointer; }
+.frame1080:hover .cs-click { outline: 2px dashed rgba(255,255,255,.22); outline-offset: 6px; }
+.cs-hi { outline: 3px solid #2EC4B6 !important; outline-offset: 6px; }
+/* 예시 글씨: 자리와 크기를 보여 줄 뿐, 영상에는 들어가지 않습니다. */
+.cs-ghost { opacity: .4; font-style: italic; outline: 2px dashed rgba(255,255,255,.3); outline-offset: 6px; }
+.cs-ghost:hover { opacity: .62; outline-color: rgba(255,255,255,.65); }
+
+/* 글자 블럭: one per text slot the chosen shape has, in the order the picture draws them. */
+.blk { margin-bottom: 10px; }
+.blk label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.blk input[type=text] { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; box-sizing: border-box; }
+.blk input[type=text]:focus { border-color: var(--ink); outline: none; }
+.blk input[type=text]:disabled { background: #f2f2f5; color: var(--muted); }
+.blk .lines { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.blk.over .lines { color: #8f2016; font-weight: 700; }
+.blk.over input[type=text] { border-color: #e1796d; background: #fffafa; }
+
+.transport { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; }
+.tRow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.tRow input[type=range] { flex: 1; min-width: 160px; }
+.tRow input[type=text] { width: 72px; text-align: center; font-family: var(--mono); padding: 7px; border: 1px solid var(--line); border-radius: 8px; }
+.tTime { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.tTime b { font-family: var(--mono); font-size: 14px; color: var(--ink); }
+#result video { width: 100%; max-width: 300px; border-radius: 10px; display: block; background: #000; }
+#shotBox img { width: 100%; max-width: 200px; border-radius: 8px; display: block; margin: 8px auto 4px; background: #111; }
+
+/* 피드·격자에서 잘리는 범위. 영상에는 들어가지 않는 안내선입니다. */
+.cs-guide { position: absolute; pointer-events: none; border: 3px dashed rgba(255,255,255,.5); }
+.cs-guide.g11 { border-color: rgba(255,210,80,.55); }
+.cs-guideTag { position: absolute; left: 12px; top: 10px; font: 700 22px/1 "Malgun Gothic", sans-serif; color: rgba(255,255,255,.75); background: rgba(0,0,0,.45); padding: 6px 10px; border-radius: 6px; }
+.cs-guide.g11 .cs-guideTag { color: rgba(255,225,140,.9); }
+
+/* 올릴 준비 */
+.post textarea { width: 100%; min-height: 120px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; line-height: 1.5; box-sizing: border-box; resize: vertical; }
+.post .actions { display: flex; gap: 8px; align-items: center; margin: 6px 0 10px; }
+.post #capLen.over { color: #8f2016; font-weight: 700; }
+.badge.ok { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: #d9f2ee; color: #0b6b5f; margin-left: auto; }

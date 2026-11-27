@@ -209,3 +209,42 @@ CREATE TABLE IF NOT EXISTS account_metric_snapshots (
   value         INTEGER,
   raw_json      TEXT
 );
+
+-- ── 영상 편집기 ────────────────────────────────────────────────────────────────────────────────────
+-- One row per video the operator cut by hand: which file, which part of it, how it was framed.
+--
+-- Deliberately separate from daily_selections / reels: that chain is one video per operating day,
+-- chosen by the program and checked for rights. This is the operator cutting their own file, as many
+-- times a day as they like, so it has no date key and no candidate. Nothing here selects or judges.
+CREATE TABLE IF NOT EXISTS edits (
+  id             INTEGER PRIMARY KEY,
+  file_ref       TEXT    NOT NULL,                 -- storage/video/<name>, as listVideoFiles() reports it
+  file_name      TEXT,
+  start_sec      REAL    NOT NULL,
+  end_sec        REAL    NOT NULL,
+  shape          TEXT    NOT NULL DEFAULT 'edit-fill',
+  zoom           REAL,                             -- NULL = the template's own framing
+  crop_x         REAL,
+  crop_y         REAL,
+  credit_on      INTEGER NOT NULL DEFAULT 1,       -- the operator turns the bottom line on or off
+  credit_text    TEXT,                             -- what that line says, typed by them
+  -- The text shapes (clip-*) carry words. Every one of them is typed by the operator in the editor:
+  -- the program writes none of it, which is why there is no candidate behind these columns.
+  tag_text       TEXT,                             -- the little box: COVER / LIVE BAND VERSION
+  title_text     TEXT,                             -- the big line
+  performer_text TEXT,
+  ko_text        TEXT,                             -- the Korean line under it, when they want one
+  why_text       TEXT,                             -- one line on why this version is worth watching
+  footer_text    TEXT,                             -- the quiet line above the credit
+  hashtags       TEXT,
+  caption        TEXT,                             -- 인스타에 붙여 넣을 글. 운영자가 쓰고 고친다
+  posted_at      TEXT,                             -- 올렸다고 표시한 시각. 같은 영상을 두 번 올리지 않도록
+  output_path    TEXT,
+  poster_path    TEXT,
+  render_status  TEXT    NOT NULL DEFAULT 'pending' CHECK (render_status IN ('pending','rendering','done','failed')),
+  render_error   TEXT,
+  created_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  updated_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  CHECK (end_sec > start_sec)
+);
+CREATE INDEX IF NOT EXISTS idx_edits_created ON edits (created_at DESC);

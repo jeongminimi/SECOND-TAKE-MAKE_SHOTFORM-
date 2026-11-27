@@ -36,6 +36,16 @@ const COLUMN_MIGRATIONS = [
   ['reels', 'zoom', 'REAL'],
   // The generated hashtags describe the performance; a scene tag (#kpop) is the operator's to type.
   ['performance_candidates', 'extra_hashtags', 'TEXT'],
+  // The editor's text shapes. Added after the editor shipped with the wordless shapes only.
+  ['edits', 'tag_text', 'TEXT'],
+  ['edits', 'title_text', 'TEXT'],
+  ['edits', 'performer_text', 'TEXT'],
+  ['edits', 'ko_text', 'TEXT'],
+  ['edits', 'why_text', 'TEXT'],
+  ['edits', 'footer_text', 'TEXT'],
+  // 반자동 올리기: 붙여 넣을 글과, 올렸다는 표시.
+  ['edits', 'caption', 'TEXT'],
+  ['edits', 'posted_at', 'TEXT'],
 ];
 function migrate(db) {
   for (const [table, col, ddl] of COLUMN_MIGRATIONS) {

@@ -1,0 +1,11 @@
+{
+  "id": "edit-fill",
+  "format": "licensed_clip",
+  "name": "꽉 채우기 (좌우가 잘립니다)",
+  "description": "영상이 9:16 화면을 가득 채웁니다. 가로 영상은 좌우가 잘리므로 확대와 좌우·위아래로 보여 줄 곳을 맞춥니다. 글씨는 맨 아래 출처 한 줄뿐입니다.",
+  "video": { "fullBleed": true, "cropX": 0.5 },
+  "progressBar": false,
+  "elements": [
+    { "type": "text", "bind": "credit", "size": 26, "color": "#FFFFFF", "y": 1838, "shadow": true }
+  ]
+}

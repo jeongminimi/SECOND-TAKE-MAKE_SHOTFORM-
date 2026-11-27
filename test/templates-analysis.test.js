@@ -21,7 +21,12 @@ const asset = (db, key) => { const a = db.prepare('SELECT id, candidate_id FROM 
 test('templates: all JSON templates load and rotate deterministically by date', async () => {
   const { cfg } = await makeEnv();
   const ids = listTemplates().map((t) => t.id).sort();
-  assert.deepEqual(ids, ['clip-full', 'clip-large', 'clip-minimal', 'clip-standard', 'graphic-classic', 'graphic-sequence']);
+  assert.deepEqual(ids, ['clip-full', 'clip-large', 'clip-minimal', 'clip-standard',
+    'edit-fill', 'edit-fit', 'graphic-classic', 'graphic-sequence']);
+  // The editor's shapes are chosen by hand in the editor and never by an unattended run.
+  for (const fmt of Object.values(cfg.render.templates ?? {})) {
+    assert.ok(!fmt.some((id) => String(id).startsWith('edit-')), 'an editor shape is in the automatic rotation');
+  }
   const a = pickTemplate(cfg, 'original_graphic', '2026-11-15');
   const b = pickTemplate(cfg, 'original_graphic', '2026-11-16');
   assert.notEqual(a, b);                                            // consecutive days alternate

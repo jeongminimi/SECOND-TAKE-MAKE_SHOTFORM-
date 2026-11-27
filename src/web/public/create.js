@@ -1,4 +1,9 @@
 'use strict';
+// Wrapped in an IIFE: this file shares global scope with app.js and manage.js, and four of its
+// top-level names (mmss, val, field, toSeconds) also exist there. A duplicate `const` is a
+// SyntaxError that kills the whole file, so ① 영상 고르기 never rendered. Only `cstate` is shared
+// outwards — manage.js reads it to decide whether ② is open.
+(() => {
 /**
  * ① 영상 고르기 · ② 구간과 문구 — the path from a video the operator already has to a finished reel.
  *
@@ -742,3 +747,7 @@ document.addEventListener('DOMContentLoaded', () => {
   host.innerHTML = step1Html();
   loadVideoFiles();
 });
+
+  // manage.js:380 reads this to decide whether ② 구간과 문구 is open.
+  window.cstate = cstate;
+})();

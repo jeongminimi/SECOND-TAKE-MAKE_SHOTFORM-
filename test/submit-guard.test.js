@@ -109,13 +109,16 @@ test('submit: without name_evidence the candidate still saves, and loses the Eng
 test('submit: the button condition includes the version-evidence rule, and only when a tag is on', () => {
   const fn = /function refreshSubmit\(\) \{[\s\S]*?\n\}/.exec(CREATE)[0];
   assert.match(fn, /tagsChecked\(\)\.length > 0 && !cEl\('cVersionEv'\)/, 'a tag without its source locks the button');
-  assert.match(fn, /\[!taggedWithoutSource, '편곡 태그 근거', 'cVersionEv'\]/, 'and it is listed by name among what is missing');
+  // The third element (the field id) was added when pressing a locked button started jumping to the
+  // first empty field, so match the entry's opening rather than a fixed arity.
+  assert.match(fn, /\[!taggedWithoutSource, '편곡 태그 근거'/, 'and it is listed by name among what is missing');
   assert.doesNotMatch(fn, /\[cEl\('cNameEv'\)\?\.value/, 'name_evidence never locks the button — it does not block a save');
   assert.match(fn, /cNameEv.*자동 선곡에서는 빠집니다/, 'it warns instead');
 
   // ticking a tag has to re-run the check, or the rule would only apply after some other edit
   assert.match(CREATE, /e\.target\.matches\?\.\('\[data-ctag\]'\)[\s\S]{0,80}refreshSubmit\(\)/);
-  assert.match(CREATE, /'cVersionEv', 'cNameEv'[^\]]*\]\.includes\(e\.target\.id\)/, 'and so does typing the source');
+  // The list grew when the source radio arrived ('cSrcUrl', 'cSrcNote'), so do not pin its end.
+  assert.match(CREATE, /'cVersionEv', 'cNameEv'[\s\S]{0,40}\]\.includes\(e\.target\.id\)/, 'and so does typing the source');
 });
 
 // ── 6 + 8: a refusal is readable beside the button it came from ──────────────────────────────────
@@ -160,6 +163,7 @@ test('submit: the candidate is checked before the first save, so a refusal leave
   assert.match(fn, /let saved = false/);
   assert.match(fn, /채널·영상·곡은 이미 저장됐습니다/, 'and a later failure says what is already in the database');
 });
+
 
 // ── D: a stage taken from somewhere is registered with where it came from ────────────────────────
 test('submit: one of the three kinds of source is required, and no placeholder stands in for it', () => {

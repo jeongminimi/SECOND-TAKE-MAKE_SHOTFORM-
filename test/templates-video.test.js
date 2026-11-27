@@ -142,7 +142,10 @@ test('video: a scrim is drawn before the text that sits on it, and does not move
 
 // ── the rights line survives every shape ─────────────────────────────────────────────────────────
 test('video: every clip template still draws the source and the rights line', () => {
-  const clips = listTemplates().filter((t) => t.format === 'licensed_clip');
+  // The pipeline's own shapes. The editor's (edit-*) are checked separately below: they carry the
+  // operator's own text, so what must always be drawn there is the source credit, not a footer the
+  // program filled in from a candidate.
+  const clips = listTemplates().filter((t) => t.format === 'licensed_clip' && t.id.startsWith('clip-'));
   assert.ok(clips.length >= 4, `expected the four clip shapes, got ${clips.map((t) => t.id)}`);
   for (const tpl of clips) {
     const binds = tpl.elements.map((e) => e.bind);
@@ -160,6 +163,29 @@ test('video: every clip template still draws the source and the rights line', ()
     }
     const parts = partsFor(tpl);
     assert.ok(parts.some((p) => /t\d+\.txt/.test(p)), `${tpl.id}: nothing was drawn`);
+  }
+});
+
+// ── the editor's own shapes ──────────────────────────────────────────────────────────────────────
+test('video: the editor shapes draw the source credit, and nothing the program made up', () => {
+  const edits = listTemplates().filter((t) => t.id.startsWith('edit-'));
+  assert.ok(edits.length >= 2, `expected the editor shapes, got ${edits.map((t) => t.id)}`);
+  for (const tpl of edits) {
+    const binds = tpl.elements.map((e) => e.bind);
+    assert.ok(binds.includes('credit'), `${tpl.id}: the source credit must be drawable`);
+    // Everything else on these is typed by the operator through the editor's own fields, so a binding
+    // the program would have to fill from a candidate has no business being here.
+    for (const b of ['headline', 'why', 'footer', 'koLine', 'clipCues']) {
+      assert.ok(!binds.includes(b), `${tpl.id}: ${b} comes from a candidate — the editor has none`);
+    }
+    assert.ok(tpl.name && /[가-힣]/.test(tpl.name), `${tpl.id}: the operator reads this name, so it is Korean`);
+    assert.ok(tpl.description && /[가-힣]/.test(tpl.description), `${tpl.id}: and its description`);
+    // Drawn over the picture with no scrim, so the one line it has must carry its own shadow.
+    for (const e of tpl.elements.filter((x) => x.type === 'text')) {
+      assert.ok(e.shadow, `${tpl.id}: text over video needs shadow: true (${e.bind})`);
+    }
+    assert.ok(tpl.elements.every((e) => e.type !== 'scrim'),
+      `${tpl.id}: the editor's shapes keep the picture clean — one small line, no band across it`);
   }
 });
 

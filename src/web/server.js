@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const os = require('node:os');
+const { spawn } = require('node:child_process');
 const path = require('node:path');
 let express;
 try { express = require('express'); } catch { express = require('./mini-express'); }
@@ -22,6 +23,7 @@ const { buildCopy } = require('../copy/templates');
 const { lookupYoutube, findVideoFile, suggestFromFilename } = require('../ingest/youtubeUrl');
 const { sourceForFile, WHERE_KO } = require('../ingest/videoSource');
 const { searchYoutube, videoDetails, hasApiKey } = require('../ingest/youtubeSearch');
+const { isInside, SHAPES, shapeEdit, saveEdit, listEdits, previewEdit, renderEdit, exportEdit, markPosted } = require('../edit/editVideo');
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -297,8 +299,9 @@ function createApp(cfg, db, impl = express) {
     try {
       const file = fromStoredPath(cfg, String(req.query?.file_ref ?? ''));
       // Only the two folders the program stores videos in, whatever the browser asked for.
-      const inside = [cfg.resolved.video, cfg.resolved.clips].some((dir) => !path.relative(dir, file).startsWith('..'));
-      if (!inside) throw new Error('이 프로그램이 다루는 영상 폴더 밖의 파일입니다.');
+      if (![cfg.resolved.video, cfg.resolved.clips].some((dir) => isInside(dir, file))) {
+        throw new Error('이 프로그램이 다루는 영상 폴더 밖의 파일입니다.');
+      }
       const found = await sourceForFile(cfg, file);
       res.json({ ok: true, source: found, where_ko: found ? WHERE_KO[found.from] : null });
     } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
@@ -399,6 +402,97 @@ function createApp(cfg, db, impl = express) {
   // The screens load the very same dictionary file the server uses, so the two can never drift.
   app.get('/terms.js', (req, res) => res.type('js').sendFile(path.join(__dirname, '..', 'util', 'terms.js')));
 
+  // ── 영상 편집기 ────────────────────────────────────────────────────────────────────────────────
+  // The screen the operator opens. It cuts a file they already have: no selection, no rights check,
+  // no caption. The pipeline routes above are untouched and still work.
+  const editBody = (req) => ({ ...(req.body ?? {}) });
+
+  app.get('/api/edit/files', (req, res) => {
+    try { res.json({ ok: true, dir: 'storage/video', files: entry.listVideoFiles(cfg) }); }
+    catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  /**
+   * The shapes the editor can draw, as data: the same template JSON the renderer reads. The screen
+   * lays the 9:16 frame out from this, so a coordinate on screen is the coordinate in the filter.
+   */
+  app.get('/api/edit/shapes', (req, res) => {
+    try {
+      const shapes = SHAPES.map((id) => {
+        const t = loadTemplate(id);
+        return { id: t.id, name: t.name, description: t.description, video: t.video ?? {}, elements: t.elements ?? [] };
+      });
+      res.json({ ok: true, shapes, width: cfg.render.width, height: cfg.render.height, brand: cfg.account?.displayName ?? '' });
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  app.get('/api/edit/list', (req, res) => {
+    try { res.json({ ok: true, edits: listEdits(db, Number(req.query?.limit) || 20), shapes: SHAPES, maxSec: cfg.render.maxClipDurationSec }); }
+    catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  app.post('/api/edit/save', (req, res) => {
+    try { res.json({ ok: true, edit: saveEdit(db, cfg, editBody(req)) }); }
+    catch (e) { res.status(400).json({ ok: false, error: e.message, error_ko: e.message }); }
+  });
+
+  /** One still frame of exactly what the render would produce. Saves nothing, leaves no file behind. */
+  app.post('/api/edit/preview', async (req, res) => {
+    let dir = null;
+    try {
+      const shaped = { id: 'preview', ...shapeEdit(cfg, editBody(req)) };
+      dir = fs.mkdtempSync(path.join(os.tmpdir(), 'edit-preview-'));
+      const out = await serial(() => previewEdit(cfg, shaped, dir));
+      res.type('jpeg').set('Cache-Control', 'no-store').send(fs.readFileSync(out.previewPath));
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message, error_ko: e.message });
+    } finally {
+      if (dir) fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  /** Saves the cut and renders it to 1080×1920. Rendering is serialised like every other render. */
+  app.post('/api/edit/render', async (req, res) => {
+    try {
+      const saved = saveEdit(db, cfg, editBody(req));
+      const done = await serial(() => renderEdit(db, cfg, saved.id));
+      res.json({ ok: true, edit: done, video_url: `/output/${String(done.output_path).replace(/^output\//, '')}` });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message, error_ko: e.message });
+    }
+  });
+
+  /** The operator says they posted it; the program only writes that down. */
+  app.post('/api/edit/posted', (req, res) => {
+    try { res.json({ ok: true, edit: markPosted(db, req.body?.id, req.body?.posted !== false) }); }
+    catch (e) { res.status(400).json({ ok: false, error: e.message, error_ko: e.message }); }
+  });
+
+  /**
+   * Opens an exported folder in Explorer, so the video can be dragged into Instagram without hunting
+   * for it. Only folders inside the program's own output directory are opened, whatever is asked for.
+   */
+  app.post('/api/edit/open-folder', (req, res) => {
+    try {
+      const dir = path.resolve(fromStoredPath(cfg, String(req.body?.dir ?? '')));
+      if (!isInside(cfg.resolved.output, dir)) throw new Error('내보내기 폴더 밖은 열지 않습니다.');
+      if (!fs.existsSync(dir)) throw new Error('그 폴더가 없습니다. 다시 내보내 주세요.');
+      const [bin, args] = process.platform === 'win32' ? ['explorer.exe', [dir]]
+        : process.platform === 'darwin' ? ['open', [dir]] : ['xdg-open', [dir]];
+      // Explorer reports a non-zero exit even when it opened the window, so nothing is read back.
+      spawn(bin, args, { detached: true, stdio: 'ignore' }).unref();
+      res.json({ ok: true, dir });
+    } catch (e) { res.status(400).json({ ok: false, error: e.message, error_ko: e.message }); }
+  });
+
+  app.post('/api/edit/export', (req, res) => {
+    try { res.json({ ok: true, ...exportEdit(db, cfg, { id: req.body?.id }) }); }
+    catch (e) { res.status(400).json({ ok: false, error: e.message, error_ko: e.message }); }
+  });
+
+  // The operator's own files, so the page can play the very file it is about to cut. Read-only, and
+  // only this one folder is served.
+  app.use('/media', impl.static(cfg.resolved.video));
   app.use('/output', impl.static(cfg.resolved.output));
   app.use('/', impl.static(path.join(__dirname, 'public')));
   return app;

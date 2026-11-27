@@ -111,6 +111,7 @@ test('6c. the rebuilt screen keeps every route, and shows no internal English on
       '/api/entry/video-files', `/api/entry/preview/${day.selection.candidate_id}`,
       `/api/reel/${day.reel.id}/crop-preview`, '/guide', `/guide/${day.reel.id}`,
       '/', '/app.js', '/create.js', '/manage.js', '/terms.js', '/style.css',
+      '/common.js', '/compose.js', '/edit.js',
     ];
     for (const r of routes) assert.equal((await get(r)).status, 200, `${r} must still answer`);
 
@@ -149,9 +150,24 @@ test('6c. the rebuilt screen keeps every route, and shows no internal English on
       assert.ok(translated('selectionStatus', s.status), `no Korean for selection status "${s.status}"`);
     }
 
-    // the four steps and the folded-away panels are all present
-    for (const marker of ['1</span> 영상 고르기', 'id="runForm"', 'id="stepList"', 'id="sideCands"', 'id="managePanel"', 'id="detail"']) {
-      assert.ok(page.includes(marker), `the rebuilt page is missing ${marker}`);
+    // The page is the editor now: pick a file you already have, watch it inside the 9:16 frame, cut it.
+    // index.html is only the shell — the panels beside the frame are built by edit.js — so each marker
+    // is checked against the file it actually lives in.
+    for (const marker of ['id="picker"', 'id="frame"', 'id="frameOuter"', 'id="transport"',
+      'id="markIn"', 'id="markOut"', 'id="playSeg"', 'id="panel"',
+      '/common.js', '/compose.js', '/edit.js']) {
+      assert.ok(page.includes(marker), `the editor page is missing ${marker}`);
+    }
+    const editJs = await (await get('/edit.js')).text();
+    for (const marker of ['<h3>글자', '<h3>모양</h3>', '<h3>영상 위치</h3>', '<h3>해시태그',
+      '<h3>올릴 준비</h3>', '<h3>지난 작업</h3>', 'id="shotImg"', 'id="history"']) {
+      assert.ok(editJs.includes(marker), `the editor's side panel is missing ${marker}`);
+    }
+    // The pipeline's own screens are still served — the routes above prove that — but the operator's
+    // screen no longer loads them.
+    for (const gone of ['id="runForm"', 'id="stepList"', 'id="managePanel"',
+      '/app.js', '/create.js', '/manage.js']) {
+      assert.ok(!page.includes(gone), `${gone} is the automatic pipeline's screen and should be off the page`);
     }
   } finally {
     server.close();

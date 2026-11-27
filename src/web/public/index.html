@@ -1,93 +1,60 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SECOND TAKE · Reels Studio</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SECOND TAKE — 영상 편집기</title>
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <header class="top">
-    <div class="brand">
-      <span class="mark">2T</span>
-      <div>
-        <strong id="brandName">SECOND TAKE</strong>
-        <span class="sub" id="brandConcept">K-pop Live Versions &amp; Covers</span>
+<header class="top">
+  <h1>SECOND TAKE</h1>
+  <p class="topNote">올라갈 모습 그대로 보면서 자르고, 글자는 눌러서 바로 고칩니다.</p>
+</header>
+
+<div class="notice" id="notice" hidden></div>
+
+<div class="editLayout">
+  <main class="editMain">
+    <div id="picker" class="pickRow"></div>
+
+    <!-- 1080×1920 그대로 만들고 한 번에 축소합니다 — 좌표가 결과물과 같은 숫자입니다. -->
+    <div class="frameWrap" id="frameWrap">
+      <div class="frameOuter" id="frameOuter">
+        <div class="frame1080" id="frame"></div>
       </div>
+      <p class="frameHint" id="frameHint">영상을 고르면 여기에 올라갈 모습이 그대로 나옵니다.</p>
     </div>
-    <p class="topNote">영상을 고르고 → 구간과 문구를 정하고 → 모양을 맞추고 → 내보냅니다.</p>
-  </header>
 
-  <div class="notice" id="notice" hidden></div>
-  <div class="server-note" id="serverNote" hidden></div>
-
-  <div class="layout">
-    <!-- Everything that is worth keeping but not worth looking at every day. -->
-    <aside class="side">
-      <details class="sideBlock" id="sideRecordBlock">
-        <summary>운영 기록</summary>
-        <form class="run" id="runForm">
-          <label>운영 날짜 <input type="date" id="runDate" required></label>
-          <label class="check"><input type="checkbox" id="reselect"> 다시 고르기</label>
-          <button type="submit" id="runBtn">오늘의 추천 받기</button>
-        </form>
-        <div class="scenarios" id="scenarios"></div>
-        <ol id="dayList"><li class="muted">아직 실행 기록이 없습니다.</li></ol>
-      </details>
-
-      <details class="sideBlock" id="sideCandBlock">
-        <summary>후보를 어떻게 비교했는지 <span class="muted small" id="ruleVer"></span></summary>
-        <div id="sideCands"><p class="muted small">날짜를 고르면 그날 비교한 후보가 여기 나옵니다.</p></div>
-      </details>
-
-      <details class="sideBlock">
-        <summary>자료 손보기</summary>
-        <p class="small muted">채널·영상·곡·후보·클립을 하나씩 고치는 곳입니다. 평소에는 열지 않아도 됩니다.</p>
-        <ol id="stepList" class="steps"></ol>
-        <p class="small muted">위에서 아래 순서로 채웁니다. 앞 단계가 없으면 뒤 단계를 저장할 수 없습니다.</p>
-      </details>
-
-      <details class="sideBlock">
-        <summary>공식 원본 안내</summary>
-        <p class="small muted">올린 릴스마다 원본 영상을 가리키는 안내 페이지입니다.</p>
-        <a class="guide-link" href="/guide" target="_blank">목록 열기 ↗</a>
-      </details>
-    </aside>
-
-    <main class="mainCol">
-      <!-- ① 영상 고르기 · ② 구간과 문구 — 새로 만들 때 쓰는 길 -->
-      <section class="card step" id="stepPick">
-        <h2><span class="n">1</span> 영상 고르기</h2>
-        <div id="pickForm"></div>
-      </section>
-
-      <section class="card step dim" id="stepClip" hidden></section>
-
-      <div id="detail"></div>
-      <div id="managePanel" hidden></div>
-    </main>
-  </div>
-
-  <template id="tplDay">
-    <section class="flow" data-ref="flow"></section>
-    <div class="cols">
-      <div class="col-main">
-        <section class="card" data-ref="selCard"></section>
-        <section class="card" data-ref="rightsCard"></section>
-        <section class="card" data-ref="segCard"></section>
-        <section class="card" data-ref="jobCard"></section>
+    <div class="transport" id="transport" hidden>
+      <div class="tRow">
+        <button class="btn" id="playPause" type="button">▶ 재생</button>
+        <input type="range" id="seek" min="0" max="100" step="0.1" value="0">
+        <span class="tTime"><b id="at">0:00</b> / <span id="len">0:00</span></span>
       </div>
-      <div class="col-side">
-        <section class="card phone-card" data-ref="previewCard"></section>
-        <section class="card" data-ref="captionCard"></section>
+      <div class="tRow">
+        <button class="btn" id="markIn" type="button">여기부터</button>
+        <input type="text" id="startAt" placeholder="0:00" inputmode="numeric">
+        <button class="btn ghost tiny" data-nudge="start:-0.5" type="button">−0.5</button>
+        <button class="btn ghost tiny" data-nudge="start:0.5" type="button">+0.5</button>
+        <button class="btn" id="markOut" type="button">여기까지</button>
+        <input type="text" id="endAt" placeholder="0:25" inputmode="numeric">
+        <button class="btn ghost tiny" data-nudge="end:-0.5" type="button">−0.5</button>
+        <button class="btn ghost tiny" data-nudge="end:0.5" type="button">+0.5</button>
+        <button class="btn ghost" id="playSeg" type="button">구간만 재생</button>
       </div>
+      <p class="segLen" id="segLen"></p>
     </div>
-  </template>
 
-  <script src="/terms.js"></script>
-  <script src="/app.js"></script>
-  <script src="/create.js"></script>
-  <script src="/manage.js"></script>
+    <section class="card" id="result" hidden></section>
+  </main>
+
+  <aside class="editSide" id="panel"></aside>
+</div>
+
+<script src="/terms.js"></script>
+<script src="/common.js"></script>
+<script src="/compose.js"></script>
+<script src="/edit.js"></script>
 </body>
 </html>
